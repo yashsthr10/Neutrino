@@ -143,6 +143,20 @@ class ExplanationAvailable:
     bullets: tuple[str, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class TaskItem:
+    id: str
+    content: str
+    status: str
+
+
+@dataclass(frozen=True, slots=True)
+class TaskListUpdated:
+    """Snapshot of the agent's todo checklist (`plan.set_tasks`)."""
+
+    tasks: tuple[TaskItem, ...]
+
+
 UIEvent = Union[
     PhaseMarker,
     StateTransition,
@@ -161,6 +175,7 @@ UIEvent = Union[
     ContextSummary,
     FailureRecovery,
     ExplanationAvailable,
+    TaskListUpdated,
 ]
 
 
