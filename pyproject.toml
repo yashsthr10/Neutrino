@@ -5,14 +5,17 @@ build-backend = "hatchling.build"
 [project]
 name = "neutrino-cli"
 version = "0.1.0"
-description = "Neutrino: repo-aware coding agent with Textual TUI"
+description = "Neutrino: repo-aware coding agent with Ink TUI"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "textual>=0.47.0",
-    "rich>=13.0",
     "pydantic>=2.0",
     "pydantic-settings>=2.0",
+    "tree-sitter>=0.25",
+    "tree-sitter-language-pack>=0.3",
+    "httpx>=0.27",
+    "keyring>=25.0",
+    "cryptography>=42.0",
 ]
 
 [project.optional-dependencies]
@@ -22,9 +25,54 @@ dev = [
     "ruff>=0.4.0",
     "black>=24.0",
 ]
+rna-embeddings = [
+    "sentence-transformers>=3.0",
+    "faiss-cpu>=1.8",
+]
+rna-web = [
+    "httpx>=0.27",
+]
+rna-mcp = [
+    "mcp>=1.0",
+]
+rna-python-lld = [
+    "pyan3>=1.2",
+    "pylint>=3.0",
+]
+inference-openai = [
+    "langchain-openai>=0.2",
+    "langchain-core>=0.3",
+]
+inference-anthropic = [
+    "langchain-anthropic>=0.2",
+    "langchain-core>=0.3",
+]
+inference-azure = [
+    "langchain-openai>=0.2",
+    "langchain-core>=0.3",
+]
+inference-bedrock = [
+    "langchain-aws>=0.2",
+    "boto3>=1.34",
+    "langchain-core>=0.3",
+]
+inference-google = [
+    "langchain-google-genai>=2.0",
+    "langchain-core>=0.3",
+]
+inference-groq = [
+    "langchain-groq>=0.2",
+    "langchain-core>=0.3",
+]
+inference-all = [
+    "neutrino-cli[inference-openai,inference-anthropic,inference-azure,inference-bedrock,inference-google,inference-groq]",
+]
 
 [project.scripts]
 neutrino = "src.entry:main"
+rna = "src.rna.cli:main"
+neutrino-auth = "src.credentials.cli:main"
+neutrino-agent = "src.agent.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src"]
@@ -36,6 +84,10 @@ include = ["src"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
+norecursedirs = ["fixtures", ".git", "node_modules", ".rna_cache"]
+python_files = ["test_*.py"]
+# Fixture sample repos under tests/rna/fixtures contain test_*.py that are
+# sample code under analysis, not pytest modules.
 
 [tool.black]
 line-length = 100

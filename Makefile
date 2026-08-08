@@ -16,3 +16,8 @@ check:
 	$(PYTHON) -m ruff check $(SRC) $(TESTS)
 	$(PYTHON) -m black --check $(SRC) $(TESTS)
 	$(PYTHON) -m pytest
+
+build:
+	pip install -e ".[dev]"   # needs root README (restored)
+	cd tui && npm run build
+	cd .. && neutrino

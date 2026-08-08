@@ -61,3 +61,14 @@ Thumbs.db
 
 # Local tooling
 *.log
+
+# Node / Ink TUI
+tui/node_modules/
+tui/dist/
+tui/coverage/
+node_modules/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
