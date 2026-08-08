@@ -1,0 +1,74 @@
+"""Agent-loop observability events (mapped to UIEvent by the orchestrator)."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any, Literal, Union
+
+
+@dataclass(frozen=True, slots=True)
+class AgentIterationStarted:
+    iteration: int
+    fsm_state: str
+
+
+@dataclass(frozen=True, slots=True)
+class ModelInvoked:
+    iteration: int
+    tool_count: int
+
+
+@dataclass(frozen=True, slots=True)
+class ToolCallRequested:
+    name: str
+    arguments: dict[str, Any]
+    tool_call_id: str
+
+
+@dataclass(frozen=True, slots=True)
+class ToolCallCompleted:
+    name: str
+    success: bool
+    error: str | None = None
+    summary: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class AgentIterationCompleted:
+    iteration: int
+    outcome: Literal["tool_calls", "final", "invalid", "error", "blocked", "cancelled"]
+
+
+@dataclass(frozen=True, slots=True)
+class AgentBlocked:
+    reason: str
+
+
+@dataclass(frozen=True, slots=True)
+class AgentCompleted:
+    final_text: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class AgentFailed:
+    reason: str
+
+
+@dataclass(frozen=True, slots=True)
+class AgentWaitingUser:
+    request_id: str
+    tool_name: str
+    summary: str
+
+
+AgentEvent = Union[
+    AgentIterationStarted,
+    ModelInvoked,
+    ToolCallRequested,
+    ToolCallCompleted,
+    AgentIterationCompleted,
+    AgentBlocked,
+    AgentCompleted,
+    AgentFailed,
+    AgentWaitingUser,
+]

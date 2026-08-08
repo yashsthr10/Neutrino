@@ -1,0 +1,8 @@
+"""python -m src.agent"""
+
+from __future__ import annotations
+
+from src.agent.cli import main
+
+if __name__ == "__main__":
+    raise SystemExit(main())
