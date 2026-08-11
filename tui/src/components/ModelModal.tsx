@@ -9,9 +9,21 @@ import type {
 import { useRuntime } from "../state/RuntimeContext.js";
 import { colors } from "../theme/colors.js";
 
+type ModelEntry = { id: string; ownedBy?: string | null };
+
 type Step =
   | { name: "providers" }
-  | { name: "models"; providerId: string; models: { id: string; ownedBy?: string | null }[] };
+  | { name: "models"; providerId: string; models: ModelEntry[] };
+
+const MODEL_DISPLAY_LIMIT = 20;
+
+/** Parse a 1-based index into a 0-based offset, or null if invalid. */
+function parseIndex(raw: string, length: number): number | null {
+  if (!/^\d+$/.test(raw)) return null;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 1 || n > length) return null;
+  return n - 1;
+}
 
 export function ModelModal() {
   const { inferenceCatalog, inferenceListModels, setModel, dispatch } = useRuntime();
@@ -41,51 +53,72 @@ export function ModelModal() {
 
   const providers: InferenceCatalogProvider[] = catalog?.providers ?? [];
 
+  const selectProvider = async (match: InferenceCatalogProvider) => {
+    setBusy(true);
+    try {
+      const listed = await inferenceListModels(match.providerId);
+      setStep({
+        name: "models",
+        providerId: match.providerId,
+        models: listed.models,
+      });
+      setValue("");
+      if (listed.warning && listed.source === "catalog") {
+        setStatus(`catalog fallback (${listed.models.length} models)`);
+      } else {
+        setStatus(`${listed.source}: ${listed.models.length} models`);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const onSubmit = async (raw: string) => {
     const line = raw.trim();
     if (!line || busy) return;
     setError(null);
     setStatus(null);
 
+    const lower = line.toLowerCase();
+    if (lower === "done" || lower === "close" || lower === "q") {
+      dispatch({ type: "set_overlay", overlay: "none" });
+      return;
+    }
+
     if (step.name === "providers") {
-      const lower = line.toLowerCase();
-      if (lower === "done" || lower === "close" || lower === "q") {
-        dispatch({ type: "set_overlay", overlay: "none" });
+      if (providers.length === 0) {
+        setError("no providers with credentials — use /auth first");
         return;
       }
-      const match = providers.find((p) => p.providerId === lower);
-      if (!match) {
-        setError(
-          providers.length === 0
-            ? "no providers with credentials — use /auth first"
-            : `not eligible: ${lower} (add keys with /auth)`,
-        );
+      const idx = parseIndex(line, providers.length);
+      if (idx === null) {
+        setError(`enter an index 1–${providers.length}`);
         return;
       }
-      setBusy(true);
-      try {
-        const listed = await inferenceListModels(match.providerId);
-        setStep({
-          name: "models",
-          providerId: match.providerId,
-          models: listed.models,
-        });
-        setValue("");
-        if (listed.warning && listed.source === "catalog") {
-          setStatus(`catalog fallback (${listed.models.length} models)`);
-        } else {
-          setStatus(`${listed.source}: ${listed.models.length} models`);
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
-      } finally {
-        setBusy(false);
-      }
+      await selectProvider(providers[idx]!);
       return;
     }
 
     // models step
-    const modelId = line;
+    if (lower === "b" || lower === "back") {
+      setStep({ name: "providers" });
+      setValue("");
+      setStatus(null);
+      return;
+    }
+
+    const idx = parseIndex(line, step.models.length);
+    if (idx === null) {
+      setError(
+        step.models.length === 0
+          ? "no models listed — b back"
+          : `enter an index 1–${step.models.length}`,
+      );
+      return;
+    }
+    const modelId = step.models[idx]!.id;
     setBusy(true);
     try {
       await setModel(step.providerId, modelId);
@@ -122,9 +155,9 @@ export function ModelModal() {
           {providers.length === 0 ? (
             <Text color={colors.warning}>none — run /auth (Ctrl+K) first</Text>
           ) : (
-            providers.map((p) => (
+            providers.map((p, i) => (
               <Text key={p.providerId} color={colors.completed}>
-                [x] {p.providerId}
+                [{i + 1}] {p.providerId}
                 {p.source ? ` (${p.source})` : ""}
               </Text>
             ))
@@ -133,25 +166,28 @@ export function ModelModal() {
       ) : (
         <>
           <Text color={colors.muted}>models for {step.providerId}</Text>
-          {step.models.slice(0, 12).map((m) => (
-            <Text key={m.id} color={colors.muted}>
-              {"  "}
-              {m.id}
+          {step.models.length === 0 ? (
+            <Text color={colors.warning}>none listed</Text>
+          ) : (
+            step.models.slice(0, MODEL_DISPLAY_LIMIT).map((m, i) => (
+              <Text key={m.id} color={colors.muted}>
+                [{i + 1}] {m.id}
+              </Text>
+            ))
+          )}
+          {step.models.length > MODEL_DISPLAY_LIMIT ? (
+            <Text color={colors.muted}>
+              {"  "}… +{step.models.length - MODEL_DISPLAY_LIMIT} more (indices 1–
+              {step.models.length})
             </Text>
-          ))}
-          {step.models.length > 12 ? (
-            <Text color={colors.muted}>  … +{step.models.length - 12} more</Text>
           ) : null}
-          <Text color={colors.muted}>type a model id (listed or custom)</Text>
         </>
       )}
 
       {status ? <Text color={colors.completed}>{status}</Text> : null}
       {error ? <Text color={colors.failure}>{error}</Text> : null}
       <Box>
-        <Text color={colors.muted}>
-          {step.name === "providers" ? "provider" : "model"}:{" "}
-        </Text>
+        <Text color={colors.muted}>index: </Text>
         <TextInput
           value={value}
           onChange={setValue}
@@ -161,8 +197,8 @@ export function ModelModal() {
       </Box>
       <Text color={colors.muted}>
         {step.name === "providers"
-          ? "only providers with keys · esc close"
-          : "enter select · esc close"}
+          ? "enter index · esc close"
+          : "enter index · b back · esc close"}
       </Text>
     </Box>
   );

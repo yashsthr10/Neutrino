@@ -1,14 +1,27 @@
-"""Orchestrator — workflow authority + Agent Loop wiring."""
+"""Orchestrator — CompletionPolicy + continuous Agent Loop wiring."""
 
 from __future__ import annotations
 
 from src.orchestrator.agent_orchestrator import AgentOrchestrator
+from src.orchestrator.completion import (
+    CompletionDecision,
+    CompletionDecisionKind,
+    CompletionTracker,
+    evaluate_completion,
+)
+from src.orchestrator.env_probe import EnvironmentSnapshot, probe_environment
 from src.orchestrator.fake import FakeOrchestratorPort
 from src.orchestrator.workflow import WorkflowController, WorkflowFlags
 
 __all__ = [
     "AgentOrchestrator",
+    "CompletionDecision",
+    "CompletionDecisionKind",
+    "CompletionTracker",
+    "EnvironmentSnapshot",
     "FakeOrchestratorPort",
     "WorkflowController",
     "WorkflowFlags",
+    "evaluate_completion",
+    "probe_environment",
 ]

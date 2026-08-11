@@ -178,7 +178,7 @@ def _ctx(repo: Path) -> ExecutionContext:
     )
 
 
-def test_loop_tool_then_final(engine, exec_repo: Path) -> None:
+def test_loop_continuous_agent_write_path(engine, exec_repo: Path) -> None:
     patch = (
         "pkg/mod.py\n"
         "<<<<<<< SEARCH\n"
@@ -198,56 +198,47 @@ def test_loop_tool_then_final(engine, exec_repo: Path) -> None:
                     "a",
                 )
             ),
-            _resp_final("context gathered"),
-        ]
-    )
-    # Phase PLAN
-    loop = AgentLoop(inference=inference, tool_engine=engine, policy=AgentPolicy(max_iterations=10))
-    result = loop.run(
-        context=_ctx(exec_repo),
-        fsm_state="PLAN",
-        messages=[Message(role="user", content="change hello to return 2")],
-    )
-    assert result.status == "COMPLETED"
-    assert result.final_text == "context gathered"
-
-    # Phase EXECUTE
-    inference2 = ScriptedInference(
-        [
             _resp_tools(
                 _tc("executor.apply", {"format": "search_replace", "patch": patch}, "b")
             ),
-            _resp_final("applied"),
-        ]
-    )
-    loop2 = AgentLoop(
-        inference=inference2, tool_engine=engine, policy=AgentPolicy(max_iterations=10)
-    )
-    result2 = loop2.run(
-        context=result.context,
-        fsm_state="EXECUTE",
-        messages=[Message(role="user", content="change hello to return 2")],
-    )
-    assert result2.status == "COMPLETED"
-    assert "return 2" in (exec_repo / "pkg" / "mod.py").read_text(encoding="utf-8")
-
-    # Phase VERIFY
-    inference3 = ScriptedInference(
-        [
             _resp_tools(_tc("tests.run", {}, "c")),
             _resp_final("tests green"),
         ]
     )
-    loop3 = AgentLoop(
-        inference=inference3, tool_engine=engine, policy=AgentPolicy(max_iterations=10)
+    loop = AgentLoop(inference=inference, tool_engine=engine, policy=AgentPolicy(max_iterations=10))
+    result = loop.run(
+        context=_ctx(exec_repo),
+        fsm_state="AGENT",
+        messages=[Message(role="user", content="change hello to return 2")],
     )
-    result3 = loop3.run(
-        context=result2.context,
-        fsm_state="VERIFY",
-        messages=[Message(role="user", content="verify")],
+    assert result.status == "COMPLETED"
+    assert result.final_text == "tests green"
+    assert "return 2" in (exec_repo / "pkg" / "mod.py").read_text(encoding="utf-8")
+    # System prompt should be layered compiler output.
+    assert inference.chat_calls
+    sys_msg = inference.chat_calls[0].messages[0]
+    assert sys_msg.role == "system"
+    assert "You are Neutrino" in (sys_msg.content or "")
+    assert "__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__" in (sys_msg.content or "")
+
+
+def test_loop_qa_path_without_apply(engine, exec_repo: Path) -> None:
+    inference = ScriptedInference(
+        [
+            _resp_tools(
+                _tc("context.resolve", {"task_description": "what is this"}, "a")
+            ),
+            _resp_final("A small sample package."),
+        ]
     )
-    assert result3.status == "COMPLETED"
-    assert result3.final_text == "tests green"
+    loop = AgentLoop(inference=inference, tool_engine=engine, policy=AgentPolicy(max_iterations=10))
+    result = loop.run(
+        context=_ctx(exec_repo),
+        fsm_state="AGENT",
+        messages=[Message(role="user", content="what is this?")],
+    )
+    assert result.status == "COMPLETED"
+    assert "sample" in (result.final_text or "").lower()
 
 
 class _QueueInference(ScriptedInference):

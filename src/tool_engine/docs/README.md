@@ -2,10 +2,10 @@
 
 User-facing reference: [`../README.md`](../README.md).
 
-This folder holds deeper design notes as they land (same pattern as [`src/rna/docs/`](../../rna/docs/) and [`src/context/docs/`](../../context/docs/)).
-
 | Doc | Status |
 |-----|--------|
-| Architecture (LLM → Capability → Services) | Covered in package README for Phase A |
+| Architecture (LLM → Capability → Services) | Package README |
 | API / tool catalog | Package README method index |
-| Orchestrator wiring | Not written yet (Phase B) |
+| State policy (`AGENT` + aliases) | Package README “State-aware catalog” |
+| Orchestrator wiring | [`../../orchestrator/README.md`](../../orchestrator/README.md) |
+| Agent prompt L2 (capability contracts) | [`../../agent/README.md`](../../agent/README.md) |

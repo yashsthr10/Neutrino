@@ -40,6 +40,7 @@ class AgentResult:
     context: ExecutionContext
     error: str | None = None
     fsm_state: str = "INIT"
+    timing: dict | None = None
 
 
 @dataclass(frozen=True, slots=True)

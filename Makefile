@@ -20,4 +20,3 @@ check:
 build:
 	pip install -e ".[dev]"   # needs root README (restored)
 	cd tui && npm run build
-	cd .. && neutrino

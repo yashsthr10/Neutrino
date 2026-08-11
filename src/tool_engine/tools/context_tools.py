@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from src.tool_engine.models import ToolParam, ToolSpec
 
-_PLAN_CTX = frozenset({"PLAN", "CONTEXT"})
-_RESOLVE_STATES = frozenset({"PLAN", "CONTEXT", "EXECUTE"})
-_REFRESH_STATES = frozenset({"PLAN", "CONTEXT", "EXECUTE", "VERIFY", "REVIEW"})
+_STATES = frozenset(
+    {"AGENT", "PLAN", "CONTEXT", "EXECUTE", "VERIFY", "REVIEW"}
+)
 
 
 def context_tool_specs() -> list[ToolSpec]:
@@ -19,7 +19,10 @@ def context_tool_specs() -> list[ToolSpec]:
             ),
             category="context",
             handler_key="context.resolve",
-            states=_RESOLVE_STATES,
+            states=_STATES,
+            when_to_use="Start of a non-trivial task: gather a ranked repo + conversation package.",
+            when_not_to_use="You already have the exact file path and only need to read it.",
+            pairs_with=("context.expand", "rna.read_file", "rna.find_symbol"),
             parameters=(
                 ToolParam("task_description", "string", True, "User task / goal"),
                 ToolParam("task_complexity", "string", False, "SIMPLE|MEDIUM|COMPLEX", "MEDIUM"),
@@ -42,7 +45,10 @@ def context_tool_specs() -> list[ToolSpec]:
             description="Expand an existing context package with additional retrieval.",
             category="context",
             handler_key="context.expand",
-            states=_PLAN_CTX,
+            states=_STATES,
+            when_to_use="Need more retrieval beyond the last resolve without starting over.",
+            when_not_to_use="First retrieval — use context.resolve.",
+            pairs_with=("context.resolve",),
             parameters=(
                 ToolParam("task_description", "string", True, "Additional retrieval goal"),
                 ToolParam("task_complexity", "string", False, "SIMPLE|MEDIUM|COMPLEX", "MEDIUM"),
@@ -65,7 +71,10 @@ def context_tool_specs() -> list[ToolSpec]:
             description="Invalidate cache and refresh context after repo changes.",
             category="context",
             handler_key="context.refresh",
-            states=_REFRESH_STATES,
+            states=_STATES,
+            when_to_use="After substantial edits when prior context may be stale.",
+            when_not_to_use="Before any edits — use resolve.",
+            pairs_with=("context.resolve", "executor.apply"),
             parameters=(
                 ToolParam("task_description", "string", False, "Task description for re-resolve"),
                 ToolParam("task_complexity", "string", False, "SIMPLE|MEDIUM|COMPLEX", "MEDIUM"),

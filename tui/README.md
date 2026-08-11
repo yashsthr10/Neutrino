@@ -51,6 +51,8 @@ See [`../protocol/README.md`](../protocol/README.md) for the wire protocol.
 
 Claude Code / Codex-style: quiet status line, chronological stream, `>` prompt. No sidebar or multi-panel dashboard. Runtime details live behind **Ctrl+R**. API keys: **Ctrl+K** / `/auth`. Model picker: **Ctrl+M** / `/model` (only providers with credentials).
 
+The Python runtime runs a continuous **AGENT** loop (soft phases DISCOVER/IMPLEMENT/VERIFY may appear in status). Completion is owned by `CompletionPolicy` — Q&A can finish without edits; code changes require verify/waive. See [`../src/orchestrator/README.md`](../src/orchestrator/README.md).
+
 ## Shortcuts
 
 | Key | Action |

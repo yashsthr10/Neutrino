@@ -30,6 +30,9 @@ class ToolSpec:
     states: frozenset[str]
     version: str = "1"
     enabled: bool = True
+    when_to_use: str = ""
+    when_not_to_use: str = ""
+    pairs_with: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

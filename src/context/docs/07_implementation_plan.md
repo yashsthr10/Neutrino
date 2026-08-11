@@ -301,7 +301,7 @@ A real session can append messages, get a summary (naive or LLM-backed), retriev
 
 ## Anti-goals (for this implementation, specifically)
 
-- No orchestrator, FSM, agent class, or tool layer is built as part of this plan — those consume this subsystem's ports and are separate work, explicitly out of scope per the original design brief.
+- No orchestrator, agent class, or tool layer is built as part of this plan — those consume this subsystem's ports and are separate work (see `src/orchestrator/README.md`, `src/agent/README.md`), explicitly out of scope per the original design brief.
 - No permanent chat-model port implementation is built here — only the minimal, clearly-temporary local seam (§0.2) needed to make `Summarizer`/`DecisionExtractor` honest about their one real dependency without inventing a second, competing LLM integration for the codebase to eventually reconcile.
 - No speculative embedding/ML ranking is added to `Ranker` — it stays a deterministic formula per `03_context_composition.md` §5 unless a future design revision explicitly changes that.
 - No new cache implementation — `PackageCache` composes `rna.cache.store.CacheStore`; if that class ever needs a capability it doesn't have, the fix is to extend RNA's cache (a cross-cutting improvement both subsystems benefit from), not to fork a second cache implementation inside `src/context/`.

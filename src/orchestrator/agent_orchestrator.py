@@ -1,4 +1,4 @@
-"""Real OrchestratorPort — owns ExecutionContext + FSM, drives AgentController."""
+"""Real OrchestratorPort — CompletionPolicy + continuous AGENT loop."""
 
 from __future__ import annotations
 
@@ -16,21 +16,32 @@ from src.agent.events import (
     AgentEvent,
     AgentFailed,
     AgentWaitingUser,
+    ModelCompleted,
     ModelInvoked,
+    TimingSummary,
     ToolCallCompleted,
     ToolCallRequested,
 )
 from src.agent.policy import AgentPolicy
+from src.agent.state_model import AgentState
 from src.config.schema import CliRules
 from src.context import ConversationManagerPort
+from src.context.runtime.conversation_context import ConversationContext
 from src.context.runtime.conversation_context import Message as ConversationMessage
 from src.context.runtime.execution_context import ExecutionContext
 from src.context.runtime.execution_state import ExecutionState
 from src.context.runtime.planning_context import PlanningContext, PlanTask
+from src.context.runtime.repository_context import RepositoryContext, RepositoryContextItem
 from src.context.runtime.request_context import RequestContext
 from src.context.runtime.verification_context import VerificationContext
-from src.inference.models.request import Message
 from src.inference.ports.inference_port import InferencePort
+from src.orchestrator.completion import (
+    CompletionDecisionKind,
+    CompletionTracker,
+    evaluate_completion,
+    refresh_policy_on_context,
+)
+from src.orchestrator.env_probe import probe_environment
 from src.orchestrator.workflow import WorkflowController
 from src.ports.orchestrator_port import (
     AgentMessage,
@@ -51,7 +62,7 @@ from src.verification.harness import VerificationPolicy, build_verification_poli
 
 
 class AgentOrchestrator:
-    """OrchestratorPort implementation backed by AgentLoop + WorkflowController."""
+    """OrchestratorPort backed by AgentLoop + CompletionPolicy."""
 
     def __init__(
         self,
@@ -77,8 +88,11 @@ class AgentOrchestrator:
         self._approval_event = threading.Event()
         self._approval_approved = False
         self._workflow = WorkflowController(max_verify_cycles=self._rules.max_verify_cycles)
+        self._tracker = CompletionTracker(max_verify_cycles=self._rules.max_verify_cycles)
         self._ctx: ExecutionContext | None = None
         self._tokens = 0
+        self._agent_state = AgentState()
+        self._env: dict[str, Any] = {}
         self._last_status: dict[str, Any] = {
             "modeLabel": "FAST (SIMPLE)",
             "tokensUsed": 0,
@@ -86,7 +100,6 @@ class AgentOrchestrator:
             "taskComplexity": "SIMPLE",
         }
         self._controller: AgentController | None = None
-        # Durable conversational memory (same instance ContextManager.resolve reads).
         self._conversation: ConversationManagerPort | None = getattr(
             tool_engine.services, "conversation", None
         )
@@ -95,20 +108,11 @@ class AgentOrchestrator:
     def repo_path(self) -> Path:
         return self._repo_path
 
-    # Compatibility with RpcServer accessing _repo_path
-    @property
-    def _repo_path_prop(self) -> Path:
-        return self._repo_path
-
     def get_status(self) -> dict[str, Any]:
         with self._lock:
             return dict(self._last_status)
 
     def replace_inference(self, inference: InferencePort) -> None:
-        """Hot-swap the InferencePort after TUI /model selection.
-
-        Refuses while a run is active so in-flight chats are not torn down.
-        """
         with self._lock:
             if self._thread and self._thread.is_alive():
                 raise RuntimeError("cannot change model while a run is in progress")
@@ -137,7 +141,6 @@ class AgentOrchestrator:
             self._thread.start()
 
     def run_blocking(self, user_query: str) -> None:
-        """CLI entry — run the full workflow on the calling thread."""
         self._run_task(user_query)
 
     def _run_task(self, user_query: str) -> None:
@@ -149,6 +152,9 @@ class AgentOrchestrator:
 
     def _execute(self, user_query: str) -> None:
         now = datetime.now(timezone.utc).isoformat()
+        complexity: Literal["SIMPLE", "MEDIUM", "COMPLEX"] = (
+            "SIMPLE" if self._runtime_mode == "fast" else "COMPLEX"
+        )
         self._ctx = ExecutionContext(
             request=RequestContext(
                 request_id=uuid.uuid4().hex,
@@ -156,12 +162,15 @@ class AgentOrchestrator:
                 user_query=user_query,
                 repo_path=str(self._repo_path),
                 requesting_agent="coder",
-                task_complexity="SIMPLE" if self._runtime_mode == "fast" else "COMPLEX",
+                task_complexity=complexity,
                 created_at=now,
             ),
             execution=ExecutionState(status="RUNNING"),
         )
-        # Persist the user turn before PLAN so context.resolve can retrieve it.
+        self._tracker = CompletionTracker(max_verify_cycles=self._rules.max_verify_cycles)
+        self._agent_state = AgentState()
+        self._env = probe_environment(self._repo_path).to_dict()
+
         self._append_conversation(
             "user",
             user_query,
@@ -171,6 +180,9 @@ class AgentOrchestrator:
         self._emit(StateTransition(old, new))
         self._emit(PhaseMarker(new))
         self._status()
+
+        # Seed verification policy early for L3/L4.
+        self._ctx, _ = refresh_policy_on_context(self._ctx, self._repo_path)
 
         policy = AgentPolicy(
             max_iterations=self._rules.max_iterations,
@@ -182,22 +194,30 @@ class AgentOrchestrator:
             policy=policy,
             on_event=self._on_agent_event,
             auto_approve_shell=self._auto_approve,
+            environment=self._env,
+            agent_state=self._agent_state,
         )
         self._controller = controller
 
-        # Drive phases until DONE / terminal
+        first = True
         while self._workflow.fsm_state not in {"DONE", "CANCELLED"}:
-            fsm = self._workflow.fsm_state
-            self._emit(PhaseMarker(fsm))
+            fsm = "AGENT"
+            soft = (
+                controller.loop.agent_state.phase
+                if controller.loop.agent_state
+                else "DISCOVER"
+            )
+            self._emit(PhaseMarker(str(soft)))
             self._status()
 
-            if not controller.messages:
+            if first:
                 result = controller.run(
                     context=self._ctx,
                     fsm_state=fsm,
                     user_query=user_query,
                     update_context=self._update_context,
                 )
+                first = False
             else:
                 result = controller.continue_phase(
                     context=self._ctx,
@@ -207,6 +227,8 @@ class AgentOrchestrator:
 
             self._ctx = result.context
             self._tokens = controller.state.tokens_used
+            if controller.loop.agent_state is not None:
+                self._agent_state = controller.loop.agent_state
             self._status()
 
             if result.status == "WAITING_USER":
@@ -231,12 +253,25 @@ class AgentOrchestrator:
                 if result.status == "CANCELLED":
                     old, new = self._workflow.cancel()
                     self._emit(StateTransition(old, new))
+                    self._emit_timing(controller)
                     self._emit(RunFinished(ok=False, message="cancelled"))
                     return
+                if result.status == "COMPLETED":
+                    # Fall through to completion evaluation.
+                    pass
+                elif result.status in {"BLOCKED", "FAILED"}:
+                    err = result.error or result.status
+                    self._emit(AgentMessage(content=err, final=True))
+                    self._emit_timing(controller)
+                    self._emit(RunFinished(ok=False, message=err))
+                    return
+                else:
+                    continue
 
             if result.status == "CANCELLED":
                 old, new = self._workflow.cancel()
                 self._emit(StateTransition(old, new))
+                self._emit_timing(controller)
                 self._emit(RunFinished(ok=False, message="cancelled"))
                 return
 
@@ -247,16 +282,14 @@ class AgentOrchestrator:
                     err,
                     metadata={"fsm_state": fsm, "outcome": result.status},
                 )
-                self._emit(
-                    AgentMessage(
-                        content=err,
-                        final=True,
-                    )
-                )
+                self._emit(AgentMessage(content=err, final=True))
+                self._emit_timing(controller)
                 self._emit(RunFinished(ok=False, message=err))
                 return
 
-            # COMPLETED for this phase — maybe transition
+            if result.status != "COMPLETED":
+                continue
+
             if result.final_text:
                 self._append_conversation(
                     "assistant",
@@ -265,84 +298,52 @@ class AgentOrchestrator:
                 )
                 self._emit(AgentMessage(content=result.final_text, final=True))
 
-            lint_only = False
-            if fsm == "VERIFY" and self._ctx is not None:
-                policy = self._refresh_verification_policy(self._ctx)
-                # Waive only when the runtime says checks are unnecessary AND the
-                # model did not already run tests.run (a failed attempt still counts).
-                if not policy.checks_required and not self._workflow.flags.tests_attempted:
-                    self._workflow.mark_verification_waived(True)
-                    self._emit(
-                        LogLine(
-                            f"VERIFY waived ({policy.reason}) — no runnable checks required",
-                            level="info",
-                        )
-                    )
-                lint_only = policy.reason == "lint_harness_present"
-
-            transition = self._workflow.after_agent_result(
-                agent_final=True, lint_only=lint_only
+            assert self._ctx is not None
+            self._ctx, _ = refresh_policy_on_context(self._ctx, self._repo_path)
+            decision = evaluate_completion(
+                self._ctx,
+                self._tracker,
+                repo_path=self._repo_path,
+                agent_final=True,
             )
-            if transition is None:
-                if fsm == "EXECUTE" and not self._workflow.flags.apply_succeeded:
-                    self._emit(
-                        LogLine(
-                            "EXECUTE finished without a successful executor.apply",
-                            level="warning",
-                        )
-                    )
-                    self._emit(RunFinished(ok=False, message="no_apply"))
-                    return
-                if fsm == "VERIFY" and not self._workflow.verification_passed(
-                    lint_only=lint_only
-                ):
-                    self._emit(
-                        LogLine(
-                            "VERIFY finished without a successful check "
-                            f"after {self._workflow.flags.verify_cycles} retry(ies)",
-                            level="warning",
-                        )
-                    )
-                    self._emit(RunFinished(ok=False, message="tests_not_green"))
-                    return
-                self._emit(RunFinished(ok=False, message="workflow_stuck"))
-                return
+            self._workflow.flags.apply_succeeded = self._tracker.apply_succeeded
+            self._workflow.flags.tests_succeeded = self._tracker.tests_succeeded
+            self._workflow.flags.tests_attempted = self._tracker.tests_attempted
+            self._workflow.flags.verify_cycles = self._tracker.verify_cycles
+            if self._tracker.verification_waived:
+                self._workflow.mark_verification_waived(True)
 
-            old, new = transition
-            self._emit(StateTransition(old, new))
-            if old == "EXECUTE" and new == "VERIFY" and self._ctx is not None:
-                self._refresh_verification_policy(self._ctx)
-                self._inject_phase_hint(
-                    controller,
-                    "FSM advanced to VERIFY. Call verify.probe (or rna.list_files) "
-                    "to see available checks. If the runtime policy says checks are "
-                    "not required, emit a short final — do not invent tests. "
-                    "If rules are required, run tests.run / lint.run (or approved "
-                    "executor.run) before your final.",
-                )
-            if old == "VERIFY" and new == "EXECUTE":
-                self._emit(
-                    LogLine(
-                        "Verification did not pass — returning to EXECUTE "
-                        f"(attempt {self._workflow.flags.verify_cycles}/"
-                        f"{self._workflow.max_verify_cycles})",
-                        level="warning",
-                    )
-                )
-                self._inject_phase_hint(
-                    controller,
-                    "VERIFY failed or was incomplete. Fix the code with executor.apply. "
-                    "Files already created must use Update File / search_replace — "
-                    "do not *** Add File for paths that already exist. "
-                    "Re-read files if unsure what is on disk.",
-                )
-            if new == "DONE":
+            if decision.kind == CompletionDecisionKind.DONE:
+                if controller.loop.agent_state is not None:
+                    controller.loop.agent_state.phase = "DONE"
+                old, new = self._workflow.mark_done()
+                self._emit(StateTransition(old, new))
                 self._ctx = self._ctx.with_execution(
                     replace(self._ctx.execution, status="DONE")
                 )
                 self._status()
-                self._emit(RunFinished(ok=True, message="done"))
+                self._emit_timing(controller)
+                self._emit(RunFinished(ok=True, message=decision.reason or "done"))
                 return
+
+            if decision.kind == CompletionDecisionKind.BLOCKED:
+                self._emit(
+                    LogLine(
+                        f"Completion blocked: {decision.reason}",
+                        level="warning",
+                    )
+                )
+                self._emit_timing(controller)
+                self._emit(RunFinished(ok=False, message=decision.reason))
+                return
+
+            # CONTINUE — nudge and keep looping with same history.
+            if decision.nudge:
+                controller.set_pending_nudge(decision.nudge)
+                self._emit(LogLine(decision.nudge, level="info"))
+            if decision.checks_required and self._ctx is not None:
+                # Keep checks_required visible in prompt / reminders.
+                pass
 
     def _append_conversation(
         self,
@@ -351,7 +352,6 @@ class AgentOrchestrator:
         *,
         metadata: dict[str, str] | None = None,
     ) -> None:
-        """Write a turn into ConversationManagerPort (durable session memory)."""
         if self._conversation is None:
             return
         text = (content or "").strip()
@@ -370,7 +370,6 @@ class AgentOrchestrator:
                 )
             )
         except Exception as exc:  # noqa: BLE001
-            # Memory must not fail the agent run.
             self._emit(LogLine(f"Conversation memory append failed: {exc}", level="warning"))
 
     def _refresh_verification_policy(self, ctx: ExecutionContext) -> VerificationPolicy:
@@ -391,10 +390,6 @@ class AgentOrchestrator:
         self._ctx = updated
         return policy
 
-    def _inject_phase_hint(self, controller: AgentController, text: str) -> None:
-        """Keep cross-phase awareness in the live message list."""
-        controller.messages.append(Message(role="user", content=text))
-
     def _update_context(
         self,
         ctx: ExecutionContext,
@@ -403,6 +398,7 @@ class AgentOrchestrator:
         result: ToolResult,
     ) -> ExecutionContext:
         self._workflow.record_tool(tool_name, success=result.success)
+        self._tracker.record_tool(tool_name, success=result.success)
         tool_entry = {
             "name": tool_name,
             "arguments": arguments,
@@ -424,11 +420,20 @@ class AgentOrchestrator:
                 if isinstance(changes, list)
                 else ctx.execution.code_changes,
             )
+            # Refresh env dirty summary after writes.
+            try:
+                self._env = probe_environment(self._repo_path).to_dict()
+                if self._controller is not None:
+                    self._controller.refresh_environment(self._env)
+            except Exception:  # noqa: BLE001
+                pass
         ctx = ctx.with_execution(execution)
         ctx = ctx.with_event(
             "tool_completed",
             {"name": tool_name, "success": result.success},
         )
+        if tool_name in {"context.resolve", "context.expand", "context.refresh"} and result.success:
+            ctx = _fold_context_package(ctx, result.data)
         if tool_name == "tests.run":
             ctx = ctx.with_verification(
                 VerificationContext(
@@ -466,6 +471,13 @@ class AgentOrchestrator:
         self._ctx = ctx
         return ctx
 
+    def _emit_timing(self, controller: AgentController) -> None:
+        stats = controller.loop.timing
+        if stats.model_calls == 0 and stats.tool_calls == 0:
+            return
+        for line in stats.summary_lines():
+            self._emit(LogLine(line, level="info"))
+
     def _on_agent_event(self, event: AgentEvent) -> None:
         if isinstance(event, ToolCallRequested):
             self._emit(
@@ -476,10 +488,13 @@ class AgentOrchestrator:
                 )
             )
         elif isinstance(event, ToolCallCompleted):
+            summary = event.summary
+            if event.cost_ms > 0:
+                summary = f"{summary} ({event.cost_ms:.0f}ms)"
             self._emit(
                 ToolCallEvent(
                     name=event.name,
-                    args_summary=event.summary,
+                    args_summary=summary,
                     success=event.success,
                 )
             )
@@ -491,6 +506,20 @@ class AgentOrchestrator:
             self._emit(LogLine(f"Approval required: {event.summary}", level="info"))
         elif isinstance(event, ModelInvoked):
             self._emit(LogLine(f"Model invoked (tools={event.tool_count})", level="info"))
+        elif isinstance(event, ModelCompleted):
+            self._emit(
+                LogLine(
+                    (
+                        f"Model done {event.latency_ms:.0f}ms "
+                        f"(in={event.input_tokens} out={event.output_tokens}, "
+                        f"tools={event.tool_count})"
+                    ),
+                    level="info",
+                )
+            )
+        elif isinstance(event, TimingSummary):
+            for line in event.lines:
+                self._emit(LogLine(line, level="info"))
 
     def _status(self) -> None:
         mode = self._runtime_mode
@@ -500,10 +529,17 @@ class AgentOrchestrator:
         else:
             complexity = "SIMPLE" if mode == "fast" else "COMPLEX"
             label = f"{mode.upper()} ({complexity})"
+        soft = self._agent_state.phase if self._agent_state else self._workflow.fsm_state
+        # UI fsm_state shows soft phase when in AGENT; DONE/CANCELLED stay hard.
+        display = (
+            self._workflow.fsm_state
+            if self._workflow.fsm_state in {"DONE", "CANCELLED", "INIT"}
+            else str(soft)
+        )
         snap = StatusSnapshot(
             mode_label=label,
             tokens_used=self._tokens,
-            fsm_state=self._workflow.fsm_state,
+            fsm_state=display,
             task_complexity=complexity,
         )
         with self._lock:
@@ -561,6 +597,66 @@ class AgentOrchestrator:
             self._controller.cancel()
         self._approval_approved = False
         self._approval_event.set()
+
+
+def _fold_context_package(ctx: ExecutionContext, data: Any) -> ExecutionContext:
+    """Project serialized context.resolve data into ExecutionContext slices."""
+    if not isinstance(data, dict):
+        return ctx
+    repo_blob = data.get("repository")
+    if isinstance(repo_blob, dict):
+        items_raw = repo_blob.get("items") or []
+        items: list[RepositoryContextItem] = []
+        for item in items_raw:
+            if not isinstance(item, dict):
+                continue
+            kind = item.get("kind") or "file"
+            try:
+                items.append(
+                    RepositoryContextItem(
+                        kind=kind,  # type: ignore[arg-type]
+                        payload=item.get("payload"),
+                        relevance=float(item.get("relevance") or 0.0),
+                        tokens_estimate=int(item.get("tokens_estimate") or 0),
+                        source_method=str(item.get("source_method") or "context.resolve"),
+                    )
+                )
+            except (TypeError, ValueError):
+                continue
+        ctx = ctx.with_repository(
+            RepositoryContext(
+                items=tuple(items),
+                tokens_estimate=int(
+                    data.get("tokens_estimate")
+                    or sum(i.tokens_estimate for i in items)
+                ),
+                truncated=bool(data.get("truncated")),
+            )
+        )
+    conv_blob = data.get("conversation")
+    if isinstance(conv_blob, dict):
+        msgs = []
+        for m in conv_blob.get("recent_messages") or []:
+            if isinstance(m, dict) and m.get("content"):
+                msgs.append(
+                    ConversationMessage(
+                        role=str(m.get("role") or "user"),  # type: ignore[arg-type]
+                        content=str(m.get("content")),
+                        created_at=datetime.now(timezone.utc).isoformat(),
+                        id=str(m.get("id") or ""),
+                    )
+                )
+        ctx = ctx.with_conversation(
+            ConversationContext(
+                recent_messages=tuple(msgs),
+                summary=None,
+                relevant_history=(),
+                decisions=(),
+                tokens_estimate=0,
+                truncated=False,
+            )
+        )
+    return ctx
 
 
 def _args_summary(arguments: dict[str, Any]) -> str:

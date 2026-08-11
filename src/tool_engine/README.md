@@ -1,6 +1,6 @@
 # Tool Engine — LLM capabilities over the Neutrino Runtime
 
-Execution bridge between language models and runtime services. It **validates, dispatches, executes, and serializes** tool calls. It does **not** contain repository analysis, planning, git, or verification logic — those stay in Context, RNA, and future services behind a Capability Layer.
+Execution bridge between language models and runtime services. It **validates, dispatches, executes, and serializes** tool calls. Domain logic stays in Context, RNA, execution, verification, and git services behind a Capability Layer — the engine only routes intention tools to those ports.
 
 ```text
 Tool Engine
@@ -8,7 +8,7 @@ Tool Engine
 ├── Registry + Validator   — catalog, enablement, state gates, arg checks
 ├── Dispatcher + Executor  — route → capability handler, timed execution
 ├── Serializer             — LLM-friendly ToolResult payloads
-└── Capability Layer       — intention tools → ContextManagerPort / RnaPort / stubs
+└── Capability Layer       — Context / RNA / Research / Executor / Verify / Git
 ```
 
 - **Library:** `from src.tool_engine import ToolEngine, build_tool_engine, ToolRequest, ToolResult`
@@ -52,8 +52,8 @@ engine = build_tool_engine(
     )
 )
 
-# What the LLM may call in PLAN
-schemas = engine.schemas_for_state("PLAN")
+# What the LLM may call in the continuous AGENT loop
+schemas = engine.schemas_for_state("AGENT")
 
 result = engine.invoke(
     ToolRequest(
@@ -65,7 +65,7 @@ result = engine.invoke(
             "file_hints": ["pkg/parser.py"],
         },
     ),
-    state="PLAN",
+    state="AGENT",
 )
 
 print(result.success)
@@ -125,7 +125,7 @@ result.to_dict()  # {"success", "data", "meta", "errors"}
 
 | Method | One-line purpose |
 |---|---|
-| [`schemas_for_state`](#1-schemas_for_state) | OpenAI/Anthropic-style function schemas for the current FSM state |
+| [`schemas_for_state`](#1-schemas_for_state) | OpenAI/Anthropic-style function schemas for the current agent state |
 | [`list_tools`](#2-list_tools) | `ToolSpec` list filtered by state |
 | [`invoke`](#3-invoke) | Validate → dispatch → execute → serialize one tool call |
 
@@ -158,33 +158,38 @@ Helpers: [`build_tool_engine`](#helpers), [`build_tool_engine_from_subsystem`](#
 | [`research.web`](#12-researchweb) | `RnaPort.google_search` | Live |
 | [`research.docs`](#13-researchdocs) | — | Stub (`not_implemented`) |
 
-#### Execution / Verification / Git (Phase A stubs)
+#### Execution / Verification / Git
 
-| Tool | Status |
-|---|---|
-| [`executor.apply`](#14-stubs) / `executor.rollback` / `executor.diff` | Stub |
-| [`tests.run`](#14-stubs) / `lint.run` / `review.run` | Stub |
-| [`git.commit`](#14-stubs) / `git.undo` / `git.diff` | Stub |
+| Tool | Backend | Status |
+|---|---|---|
+| `executor.apply` / `rollback` / `diff` / `run` | ExecutionService | Live (`run` is approval-gated in AgentLoop) |
+| `verify.probe` / `tests.run` / `lint.run` | VerificationService | Live |
+| `review.run` | — | Stub (`not_implemented`) |
+| `git.commit` / `git.undo` / `git.diff` | GitService | Live |
+| `plan.set_tasks` | PlanningContext | Live (bookkeeping only) |
 
 ---
 
 ## State-aware catalog
 
-Only tools allowed for the current FSM phase are exposed via `schemas_for_state` / accepted by `invoke`.
+The continuous agent loop uses state **`AGENT`**, which exposes the full productive surface.
+Legacy labels (`PLAN`, `CONTEXT`, `EXECUTE`, `VERIFY`, `REVIEW`) are **aliases** of the same
+allowlist during migration.
 
 | State | Available |
 |---|---|
-| `PLAN` / `CONTEXT` | `context.*`, `rna.*`, `research.*`, `plan.set_tasks` |
-| `EXECUTE` | `context.refresh`, `context.resolve`, `rna.*`, `executor.*`, `git.*`, `tests.run`, `plan.set_tasks` |
-| `VERIFY` / `REVIEW` | `tests.run`, `lint.run`, `review.run`, `context.refresh`, `rna.find_tests`, `plan.set_tasks` |
+| `AGENT` (+ legacy aliases) | `context.*`, `rna.*`, `research.*`, `executor.*`, `git.*`, `verify.probe`, `tests.run`, `lint.run`, `review.run`, `plan.set_tasks` |
 | `INIT` / `DONE` / `CANCELLED` | none |
 
-`plan.set_tasks` tracks a todo checklist across phases (see `PlanningContext.tasks`). It is
-informational bookkeeping only — it never gates FSM transitions; `WorkflowController` remains
-the sole authority for phase changes, including the bounded `VERIFY -> EXECUTE` retry when
-verification fails (`WorkflowController.max_verify_cycles`).
+Behavioral guidance lives on each `ToolSpec` (`when_to_use`, `when_not_to_use`, `pairs_with`) and is
+merged into provider schema descriptions via `enrich_tool_description`. The prompt compiler’s L2
+section renders the same metadata.
 
-Pass `state=` on every `invoke` (orchestrator owns the FSM). `ExecutionContext` is an optional input for future inference; the engine never mutates it.
+`plan.set_tasks` is informational bookkeeping only — it never gates completion.
+**DONE** is decided by the orchestrator’s `CompletionPolicy` (see [`../orchestrator/README.md`](../orchestrator/README.md)).
+
+Pass `state="AGENT"` on every `invoke` from the agent loop. `ExecutionContext` may be attached on
+`ToolRequest`; the engine never mutates it.
 
 ---
 
@@ -218,17 +223,21 @@ List of objects shaped like:
 ### Usage
 
 ```python
-for schema in engine.schemas_for_state("PLAN"):
-    print(schema["name"])
-# context.expand, context.refresh, context.resolve, rna.*, research.*
-assert "executor.apply" not in {s["name"] for s in engine.schemas_for_state("PLAN")}
+names = {s["name"] for s in engine.schemas_for_state("AGENT")}
+assert "context.resolve" in names
+assert "executor.apply" in names
+assert "tests.run" in names
+# Legacy aliases share the same catalog:
+assert names == {s["name"] for s in engine.schemas_for_state("PLAN")}
 ```
+
+Provider `description` fields include `When to use:` / `When not to use:` from `ToolSpec` metadata.
 
 ---
 
 ## 2. `list_tools`
 
-Same filter as schemas, but returns `ToolSpec` objects (name, parameters, category, states, version).
+Same filter as schemas, but returns `ToolSpec` objects (including `when_to_use`, `when_not_to_use`, `pairs_with`).
 
 ### Signature
 
@@ -300,7 +309,7 @@ Compact LLM view (not the full internal `ContextPackage` graph):
 | `conversation.recent_messages` | Short recent slice |
 | `tokens_estimate` / `token_budget` / `truncated` / `provenance` | Budgeting metadata |
 
-States: `PLAN`, `CONTEXT`.
+States: `AGENT` (+ legacy aliases).
 
 ---
 
@@ -312,7 +321,7 @@ Widen context with an additional retrieval goal. Capability → resolve/expand p
 
 Same core fields as [`context.resolve`](#4-contextresolve), plus optional `package` (prior package summary dict). Without a live host-held `ContextPackage`, the capability safely re-resolves then expands.
 
-States: `PLAN`, `CONTEXT`.
+States: `AGENT` (+ legacy aliases).
 
 ---
 
@@ -327,7 +336,7 @@ Invalidate cache and re-resolve after repo changes. Capability → `invalidate` 
 | `task_description` | no | Defaults to `"refresh context"` |
 | `file_hints` / `symbol_hints` / … | no | Same as resolve |
 
-States: `PLAN`, `CONTEXT`, `EXECUTE`, `VERIFY`, `REVIEW`.
+States: `AGENT` (+ legacy aliases).
 
 ---
 
@@ -346,7 +355,7 @@ Go-to-definition. Maps to `RnaPort.get_symbol`.
 
 Serialized `RnaResult` dict: `{"data": [...SymbolRef...], "meta": {...}}`.
 
-States: `PLAN`, `CONTEXT`, `EXECUTE`.
+States: `AGENT` (+ legacy aliases).
 
 ---
 
@@ -361,7 +370,7 @@ Trace a call path from an entrypoint. Maps to `RnaPort.get_workflow`.
 | `entrypoint` | yes | Entrypoint symbol or path |
 | `max_depth` | no | Max traversal depth (default `4`) |
 
-States: `PLAN`, `CONTEXT`, `EXECUTE`.
+States: `AGENT` (+ legacy aliases).
 
 ---
 
@@ -375,7 +384,7 @@ Find tests related to a target. Maps to `RnaPort.get_tests`.
 |---|---|---|
 | `target` | yes | Symbol or module target |
 
-States: `PLAN`, `CONTEXT`, `EXECUTE`, `VERIFY`, `REVIEW`.
+States: `AGENT` (+ legacy aliases).
 
 ---
 
@@ -405,7 +414,7 @@ Compose related facts (no dedicated RNA method): `get_callers` + `get_tests` + `
 }
 ```
 
-States: `PLAN`, `CONTEXT`, `EXECUTE`.
+States: `AGENT` (+ legacy aliases).
 
 ---
 
@@ -420,7 +429,9 @@ Meaning-based code search. Maps to `RnaPort.semantic_search`.
 | `query` | yes | Natural-language query |
 | `limit` | no | Max hits (default `10`) |
 
-States: `PLAN`, `CONTEXT`, `EXECUTE`.
+States: `AGENT` (+ legacy aliases).
+
+Also available on the AGENT surface: `rna.read_file`, `rna.search`, `rna.list_files` (same state set).
 
 ---
 
@@ -435,32 +446,32 @@ External web search. Maps to `RnaPort.google_search` (may soft-fail with `meta.e
 | `query` | yes | Search query |
 | `limit` | no | Max results (default `5`) |
 
-States: `PLAN`, `CONTEXT`.
+States: `AGENT` (+ legacy aliases).
 
 ---
 
 ## 13. `research.docs`
 
-Project/docs index — **not implemented** in Phase A. Returns `success=False`, `meta.error="not_implemented"`.
+Project/docs index — **not implemented**. Returns `success=False`, `meta.error="not_implemented"`.
 
-States: `PLAN`, `CONTEXT`.
+States: `AGENT` (+ legacy aliases).
 
 ---
 
-## 14. Stubs
+## 14. Execution / verification / git
 
-`executor.*`, `tests.run`, `lint.run`, `review.run`, `git.*` register schemas and honor state gates, but handlers return:
+Live handlers (not stubs):
 
-```python
-ToolResult(
-  success=False,
-  data={"tool": "<name>", "status": "not_implemented"},
-  meta=ToolMeta(error="not_implemented", reason="Service not wired in Phase A"),
-  errors=("not_implemented",),
-)
-```
-
-Tool names stay stable when real services land.
+| Tool | Notes |
+|---|---|
+| `executor.apply` | patch / search_replace / udiff; prefer over shell for edits |
+| `executor.rollback` / `executor.diff` | Undo / inspect last apply |
+| `executor.run` | Shell; AgentLoop requires `approved=true` (TUI approval) |
+| `verify.probe` | Detect test/lint harness + sample paths |
+| `tests.run` / `lint.run` | Configurable runners |
+| `review.run` | Stub (`not_implemented`) |
+| `git.diff` / `git.commit` / `git.undo` | Working-tree ops |
+| `plan.set_tasks` | Full checklist replace; does not gate DONE |
 
 ---
 
@@ -497,6 +508,10 @@ class RuntimeServices:
     context: ContextManagerPort | None = None
     conversation: ConversationManagerPort | None = None
     rna: RnaPort | None = None
+    execution: ExecutionPort | None = None
+    git: GitService | None = None
+    verification: VerificationPort | None = None
+    repo_path: Path | None = None
 ```
 
 The LLM never receives this object. Capabilities are the only callers.
@@ -518,12 +533,15 @@ The LLM never receives this object. Capabilities are the only callers.
 | Field | Type | Description |
 |---|---|---|
 | `name` | `str` | LLM-facing name |
-| `description` | `str` | Schema description |
+| `description` | `str` | Base schema description |
 | `parameters` | `tuple[ToolParam, ...]` | Arg schema |
-| `category` | `str` | `context` / `rna` / `research` / … |
-| `handler_key` | `str` | Capability dispatch key (equals `name` in Phase A) |
-| `states` | `frozenset[str]` | FSM phases where the tool may appear |
+| `category` | `str` | `context` / `rna` / `research` / `execution` / … |
+| `handler_key` | `str` | Capability dispatch key (equals `name`) |
+| `states` | `frozenset[str]` | States where the tool may appear (`AGENT` + legacy aliases) |
 | `version` | `str` | Spec version |
+| `when_to_use` | `str` | Behavioral guidance merged into provider description + prompt L2 |
+| `when_not_to_use` | `str` | Anti-patterns for this tool |
+| `pairs_with` | `tuple[str, ...]` | Related tools often used together |
 
 ---
 
@@ -541,18 +559,18 @@ tool_engine/
 ├── models.py
 ├── observability.py
 ├── state_policy.py
-├── capabilities/          # Context / RNA / Research / stubs
-├── tools/                 # ToolSpec registrations
-└── contracts/schema.py    # JSON-schema export
+├── capabilities/          # Context / RNA / Research / Executor / Verify / Git
+├── tools/                 # ToolSpec registrations (+ when_to_use metadata)
+├── state_policy.py        # AGENT_TOOLS (+ legacy FSM aliases)
+└── contracts/schema.py    # JSON-schema export (enriched descriptions)
 ```
 
 ---
 
-## Non-goals (Phase A)
+## Non-goals
 
-- Wiring into Ink TUI / RPC dummy / real orchestrator
 - Replacing RNA MCP (`rna_get_*` stays a separate surface)
-- Real git write, patch apply, or test runners
-- Changing Context Manager or RNA public ports
+- Owning DONE / soft-phase policy (orchestrator `CompletionPolicy` + agent reminders)
+- Mutating `ExecutionContext` inside the engine — callers append `ToolResult.to_dict()` after `invoke`
 
-Callers that own `ExecutionContext` should append `ToolResult.to_dict()` into `ExecutionState.tool_results` after `invoke` — the engine never mutates runtime state.
+`review.run` and `research.docs` remain stubs (`not_implemented`).

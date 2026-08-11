@@ -74,12 +74,11 @@ def _final(text: str) -> InferenceResponse:
     )
 
 
-def test_controller_keeps_tool_history_across_phases(tmp_path) -> None:
+def test_controller_keeps_tool_history_across_continues(tmp_path) -> None:
     responses = [
-        # PLAN
         _tools(_tc("rna.list_files", {"pattern": "*.py"}, "1")),
         _final("planned"),
-        # EXECUTE phase continues with same controller
+        # continue_phase with same controller
         _final("still remembering"),
     ]
     inference = ScriptedInference(responses)
@@ -102,11 +101,11 @@ def test_controller_keeps_tool_history_across_phases(tmp_path) -> None:
             created_at="2026-01-01T00:00:00Z",
         )
     )
-    r1 = controller.run(context=ctx, fsm_state="PLAN", user_query="inspect then continue")
+    r1 = controller.run(context=ctx, fsm_state="AGENT", user_query="inspect then continue")
     assert r1.status == "COMPLETED"
     assert any(m.role == "tool" for m in controller.messages)
 
-    r2 = controller.continue_phase(context=ctx, fsm_state="EXECUTE")
+    r2 = controller.continue_phase(context=ctx, fsm_state="AGENT")
     assert r2.status == "COMPLETED"
 
     # Second chat request must still include the earlier tool result.

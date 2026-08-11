@@ -11,8 +11,7 @@ type Step =
   | { name: "secret"; providerId: string; kind: string }
   | { name: "aws_secret"; providerId: string; accessKeyId: string };
 
-const PROVIDER_HINT =
-  "type provider id to set · remove <id> · esc close";
+const MENU_HINT = "enter index to set · rm <index> · esc close";
 
 function kindFor(providerId: string): string {
   if (providerId === "azure_openai") return "azure";
@@ -26,6 +25,14 @@ function secretPrompt(kind: string, step: Step): string {
   if (kind === "azure") return "Azure OpenAI API key";
   if (kind === "bearer") return "bearer token";
   return "API key";
+}
+
+/** Parse a 1-based index into a 0-based offset, or null if invalid. */
+function parseIndex(raw: string, length: number): number | null {
+  if (!/^\d+$/.test(raw)) return null;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 1 || n > length) return null;
+  return n - 1;
 }
 
 export function CredentialsModal() {
@@ -77,7 +84,17 @@ export function CredentialsModal() {
         return;
       }
       if (lower.startsWith("remove ") || lower.startsWith("rm ")) {
-        const providerId = lower.replace(/^(remove|rm)\s+/, "").trim();
+        if (providers.length === 0) {
+          setError("no providers listed");
+          return;
+        }
+        const token = lower.replace(/^(remove|rm)\s+/, "").trim();
+        const idx = parseIndex(token, providers.length);
+        if (idx === null) {
+          setError(`rm <index> — use 1–${providers.length}`);
+          return;
+        }
+        const providerId = providers[idx]!.providerId;
         setBusy(true);
         try {
           await credentialsRemove(providerId, profile);
@@ -91,18 +108,27 @@ export function CredentialsModal() {
         }
         return;
       }
-      const providerId = lower;
-      const known = providers.some((p) => p.providerId === providerId);
-      if (!known) {
-        setError(`unknown provider: ${providerId}`);
+      if (providers.length === 0) {
+        setError("no providers listed");
         return;
       }
+      const idx = parseIndex(line, providers.length);
+      if (idx === null) {
+        setError(`enter an index 1–${providers.length}`);
+        return;
+      }
+      const providerId = providers[idx]!.providerId;
       setValue("");
       setStep({ name: "secret", providerId, kind: kindFor(providerId) });
       return;
     }
 
     if (step.name === "secret") {
+      if (lowerIsBack(line)) {
+        setStep({ name: "menu" });
+        setValue("");
+        return;
+      }
       if (step.kind === "aws") {
         setValue("");
         setStep({
@@ -130,6 +156,15 @@ export function CredentialsModal() {
     }
 
     if (step.name === "aws_secret") {
+      if (lowerIsBack(line)) {
+        setStep({
+          name: "secret",
+          providerId: step.providerId,
+          kind: "aws",
+        });
+        setValue("");
+        return;
+      }
       setBusy(true);
       try {
         await credentialsSet(
@@ -151,7 +186,7 @@ export function CredentialsModal() {
 
   const promptLabel =
     step.name === "menu"
-      ? "provider"
+      ? "index"
       : secretPrompt(step.name === "secret" ? step.kind : "aws", step);
 
   return (
@@ -161,12 +196,11 @@ export function CredentialsModal() {
         profile {profile}
         {busy ? "  …" : ""}
       </Text>
-      {providers.map((p) => {
-        const mark = p.configured ? "[x]" : "[ ]";
+      {providers.map((p, i) => {
         const src = p.source ? ` (${p.source})` : "";
         return (
           <Text key={p.providerId} color={p.configured ? colors.completed : colors.muted}>
-            {mark} {p.providerId}
+            [{i + 1}] {p.providerId}
             {src}
           </Text>
         );
@@ -184,8 +218,13 @@ export function CredentialsModal() {
         />
       </Box>
       <Text color={colors.muted}>
-        {step.name === "menu" ? PROVIDER_HINT : "enter save · esc cancel step"}
+        {step.name === "menu" ? MENU_HINT : "enter save · b back · esc cancel"}
       </Text>
     </Box>
   );
+}
+
+function lowerIsBack(line: string): boolean {
+  const lower = line.trim().toLowerCase();
+  return lower === "b" || lower === "back";
 }

@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from src.tool_engine.models import ToolParam, ToolSpec
 
-_STATES = frozenset({"EXECUTE"})
+_STATES = frozenset(
+    {"AGENT", "PLAN", "CONTEXT", "EXECUTE", "VERIFY", "REVIEW"}
+)
 
 
 def git_tool_specs() -> list[ToolSpec]:
@@ -15,6 +17,9 @@ def git_tool_specs() -> list[ToolSpec]:
             category="git",
             handler_key="git.commit",
             states=_STATES,
+            when_to_use="User asked to commit and changes are ready.",
+            when_not_to_use="Do not invent commits; avoid force operations.",
+            pairs_with=("git.diff", "executor.apply"),
             parameters=(ToolParam("message", "string", False, "Commit message"),),
         ),
         ToolSpec(
@@ -23,6 +28,9 @@ def git_tool_specs() -> list[ToolSpec]:
             category="git",
             handler_key="git.undo",
             states=_STATES,
+            when_to_use="User asked to undo the last commit; keep it rare.",
+            when_not_to_use="Destructive history rewrite beyond mixed reset.",
+            pairs_with=("git.diff", "git.commit"),
             parameters=(),
         ),
         ToolSpec(
@@ -31,6 +39,9 @@ def git_tool_specs() -> list[ToolSpec]:
             category="git",
             handler_key="git.diff",
             states=_STATES,
+            when_to_use="Inspect uncommitted changes in the working tree.",
+            when_not_to_use="Use executor.diff for the last apply-only change id.",
+            pairs_with=("git.commit", "executor.diff"),
             parameters=(
                 ToolParam("staged", "boolean", False, "Staged only", False),
                 ToolParam("path", "string", False, "Optional path filter"),

@@ -63,6 +63,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Use FakeInferenceProvider (no network; for smoke tests)",
     )
+    p.add_argument(
+        "--timing",
+        action="store_true",
+        help="Print model vs tool timing summary JSON at end of run",
+    )
     return p
 
 
@@ -106,6 +111,18 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Running agent on {repo}", file=sys.stderr)
     orch.run_blocking(args.task)
     status = orch.get_status()
+    if args.timing:
+        import json
+
+        # Best-effort: controller may be gone; timing also streamed via LogLine.
+        ctrl = getattr(orch, "_controller", None)
+        if ctrl is not None:
+            print(json.dumps(ctrl.loop.timing.to_dict(), indent=2), file=sys.stderr)
+        else:
+            print(
+                json.dumps({"note": "timing was emitted as log lines during the run"}),
+                file=sys.stderr,
+            )
     return 0 if status.get("fsmState") == "DONE" else 1
 
 

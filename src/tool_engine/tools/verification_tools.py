@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from src.tool_engine.models import ToolParam, ToolSpec
 
-_STATES = frozenset({"EXECUTE", "VERIFY", "REVIEW"})
-_VERIFY_INSPECT = frozenset({"VERIFY", "REVIEW"})
+_STATES = frozenset(
+    {"AGENT", "PLAN", "CONTEXT", "EXECUTE", "VERIFY", "REVIEW"}
+)
 
 
 def verification_tool_specs() -> list[ToolSpec]:
@@ -14,11 +15,14 @@ def verification_tool_specs() -> list[ToolSpec]:
             name="verify.probe",
             description=(
                 "Inspect the repo for test/lint harness markers and sample paths "
-                "(structured alternative to ls -R). Use at the start of VERIFY."
+                "(structured alternative to ls -R)."
             ),
             category="verification",
             handler_key="verify.probe",
-            states=_VERIFY_INSPECT,
+            states=_STATES,
+            when_to_use="Learn whether tests/lint exist and what to run after code changes.",
+            when_not_to_use="You already know the harness from ENVIRONMENT / prior probe.",
+            pairs_with=("tests.run", "lint.run"),
             parameters=(
                 ToolParam(
                     "max_paths",
@@ -35,6 +39,9 @@ def verification_tool_specs() -> list[ToolSpec]:
             category="verification",
             handler_key="tests.run",
             states=_STATES,
+            when_to_use="Behavior changed or user asked for proof and a test harness exists.",
+            when_not_to_use="Pure Q&A with no edits; waived when checks are not required.",
+            pairs_with=("verify.probe", "executor.apply", "rna.find_tests"),
             parameters=(ToolParam("target", "string", False, "Optional test target"),),
         ),
         ToolSpec(
@@ -42,7 +49,10 @@ def verification_tool_specs() -> list[ToolSpec]:
             description="Run the configured linter (default: ruff check).",
             category="verification",
             handler_key="lint.run",
-            states=frozenset({"VERIFY", "REVIEW"}),
+            states=_STATES,
+            when_to_use="Lint harness is present and you need static checks (or tests are absent).",
+            when_not_to_use="No lint harness; prefer tests.run when tests exist for behavior changes.",
+            pairs_with=("verify.probe", "tests.run"),
             parameters=(ToolParam("paths", "array", False, "Optional paths"),),
         ),
         ToolSpec(
@@ -50,7 +60,10 @@ def verification_tool_specs() -> list[ToolSpec]:
             description="Run review checks (stub — not implemented).",
             category="verification",
             handler_key="review.run",
-            states=frozenset({"VERIFY", "REVIEW"}),
+            states=_STATES,
+            when_to_use="Explicit review request when implemented.",
+            when_not_to_use="Prefer tests.run / lint.run for verification today.",
+            pairs_with=("tests.run", "lint.run"),
             parameters=(ToolParam("summary", "string", False, "Optional review focus"),),
         ),
     ]

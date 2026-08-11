@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import time
 from collections.abc import Callable
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from typing import Any
 
 from src.agent.classifier import ClassifiedOutcome, classify
@@ -17,13 +17,22 @@ from src.agent.events import (
     AgentIterationCompleted,
     AgentIterationStarted,
     AgentWaitingUser,
+    ModelCompleted,
     ModelInvoked,
+    TimingSummary,
     ToolCallCompleted,
     ToolCallRequested,
 )
 from src.agent.policy import AgentPolicy
-from src.agent.prompts import build_system_prompt, format_execution_snapshot
+from src.agent.prompts.compiler import (
+    PromptInputs,
+    compile_system_prompt,
+    format_reminders_message,
+)
+from src.agent.reminders import ReminderFacts, build_reminders, looks_question_like, observe_tool
 from src.agent.state import AgentLoopState, AgentResult
+from src.agent.state_model import AgentState, derive_agent_state
+from src.agent.timing import TimingStats
 from src.agent.tool_call_repair import (
     extract_failed_generation,
     is_tool_use_failed,
@@ -53,6 +62,11 @@ class AgentLoop:
     policy: AgentPolicy = field(default_factory=AgentPolicy)
     on_event: EventCallback | None = None
     auto_approve_shell: bool = False
+    environment: dict[str, Any] | None = None
+    agent_state: AgentState | None = None
+    reminder_facts: ReminderFacts | None = None
+    pending_nudge: str | None = None
+    timing: TimingStats = field(default_factory=TimingStats)
 
     def run(
         self,
@@ -68,10 +82,17 @@ class AgentLoop:
             loop_state.started_at = time.time()
         loop_state.status = "RUNNING"
         ctx = context
-        # Mutate the caller's list in place so phase transitions (PLAN→EXECUTE→VERIFY)
-        # keep assistant/tool history. A copy here previously wiped cross-phase memory.
+        # Mutate the caller's list in place so continuous agent history is preserved.
         history = messages
         final_text: str | None = None
+        if self.agent_state is None:
+            self.agent_state = AgentState()
+        if self.reminder_facts is None:
+            self.reminder_facts = ReminderFacts(
+                question_like=looks_question_like(ctx.request.user_query),
+                max_iterations=self.policy.max_iterations,
+                token_budget=self.policy.token_budget,
+            )
 
         while True:
             ok, stop_reason = self.policy.should_continue(loop_state)
@@ -80,6 +101,10 @@ class AgentLoop:
 
             loop_state.iteration += 1
             self._emit(AgentIterationStarted(loop_state.iteration, fsm_state))
+            self.reminder_facts.iteration = loop_state.iteration
+            self.reminder_facts.tokens_used = loop_state.tokens_used
+            self.reminder_facts.checks_required = ctx.verification.checks_required
+            self.reminder_facts.same_tool_streak = int(loop_state.same_tool_streak[1] or 0)
 
             schemas = self.tool_engine.schemas_for_state(fsm_state)
             tools = tool_engine_schemas_to_specs(schemas)
@@ -91,7 +116,23 @@ class AgentLoop:
             self._emit(ModelInvoked(loop_state.iteration, len(tools)))
 
             try:
+                t0 = time.perf_counter()
                 response = self.inference.chat(request)
+                model_ms = (time.perf_counter() - t0) * 1000.0
+                self.timing.record_model(
+                    model_ms,
+                    input_tokens=int(response.usage.input_tokens),
+                    output_tokens=int(response.usage.output_tokens),
+                )
+                self._emit(
+                    ModelCompleted(
+                        iteration=loop_state.iteration,
+                        latency_ms=model_ms,
+                        input_tokens=int(response.usage.input_tokens),
+                        output_tokens=int(response.usage.output_tokens),
+                        tool_count=len(tools),
+                    )
+                )
             except ToolUseFailed as exc:
                 handled, ctx = self._recover_tool_use_failed(
                     exc,
@@ -124,12 +165,13 @@ class AgentLoop:
                 self._emit(AgentIterationCompleted(loop_state.iteration, "error"))
                 loop_state.status = "FAILED"
                 self._emit(AgentFailed(str(exc)))
-                return AgentResult(
+                return self._result(
                     status="FAILED",
                     final_text=None,
                     context=ctx,
                     error=str(exc),
                     fsm_state=fsm_state,
+                    emit_timing=True,
                 )
 
             loop_state.tokens_used += int(response.usage.input_tokens) + int(
@@ -181,7 +223,7 @@ class AgentLoop:
                             )
                         )
                         if status == "waiting_user":
-                            return AgentResult(
+                            return self._result(
                                 status="WAITING_USER",
                                 final_text=None,
                                 context=ctx,
@@ -231,7 +273,7 @@ class AgentLoop:
                 )
                 if status == "waiting_user":
                     self._emit(AgentIterationCompleted(loop_state.iteration, "tool_calls"))
-                    return AgentResult(
+                    return self._result(
                         status="WAITING_USER",
                         final_text=None,
                         context=ctx,
@@ -251,7 +293,9 @@ class AgentLoop:
             loop_state.status = "COMPLETED"
             self._emit(AgentIterationCompleted(loop_state.iteration, "final"))
             self._emit(AgentCompleted(final_text))
-            return AgentResult(
+            # Timing summary is emitted by the orchestrator on true run end
+            # (CompletionPolicy may CONTINUE after a model final).
+            return self._result(
                 status="COMPLETED",
                 final_text=final_text,
                 context=ctx,
@@ -272,23 +316,25 @@ class AgentLoop:
         if not approved:
             loop_state.status = "CANCELLED"
             loop_state.pending_approval_id = None
-            return AgentResult(
+            return self._result(
                 status="CANCELLED",
                 final_text=None,
                 context=context,
                 error="approval_rejected",
                 fsm_state=fsm_state,
+                emit_timing=True,
             )
         name = loop_state.pending_tool_name
         args = dict(loop_state.pending_tool_arguments or {})
         if not name:
             loop_state.status = "FAILED"
-            return AgentResult(
+            return self._result(
                 status="FAILED",
                 final_text=None,
                 context=context,
                 error="no_pending_approval",
                 fsm_state=fsm_state,
+                emit_timing=True,
             )
         args["approved"] = True
         loop_state.pending_approval_id = None
@@ -300,6 +346,7 @@ class AgentLoop:
             ToolRequest(name=name, arguments=args, execution_context=context),
             state=fsm_state,
         )
+        self.timing.record_tool(name, float(result.meta.cost_ms or 0.0))
         self.policy.record_tool_outcome(
             loop_state, tool_name=name, arguments=args, success=result.success
         )
@@ -309,6 +356,7 @@ class AgentLoop:
                 success=result.success,
                 error=result.meta.error,
                 summary=_summarize_result(result),
+                cost_ms=float(result.meta.cost_ms or 0.0),
             )
         )
         ctx = context
@@ -378,7 +426,7 @@ class AgentLoop:
             )
             if status == "waiting_user":
                 return (
-                    AgentResult(
+                    self._result(
                         status="WAITING_USER",
                         final_text=None,
                         context=ctx,
@@ -461,12 +509,48 @@ class AgentLoop:
             self.policy.record_tool_outcome(
                 loop_state, tool_name=tc.name, arguments=args, success=result.success
             )
+            err_text = result.meta.error or (
+                "; ".join(result.errors) if result.errors else ""
+            )
+            if self.reminder_facts is not None:
+                observe_tool(
+                    self.reminder_facts,
+                    name=tc.name,
+                    success=result.success,
+                    error_text=err_text,
+                    same_tool_streak=int(loop_state.same_tool_streak[1] or 0),
+                )
+            if self.agent_state is not None:
+                open_tasks = any(
+                    getattr(t, "status", "") in {"pending", "in_progress"}
+                    for t in ctx.planning.tasks
+                )
+                self.agent_state = derive_agent_state(
+                    self.agent_state,
+                    tool_name=tc.name,
+                    success=result.success,
+                    apply_succeeded=self.reminder_facts.apply_succeeded
+                    if self.reminder_facts
+                    else False,
+                    checks_required=ctx.verification.checks_required,
+                    tests_succeeded=bool(
+                        isinstance(ctx.verification.test_results, dict)
+                        and ctx.verification.test_results.get("success")
+                    ),
+                    has_open_plan_tasks=open_tasks,
+                    verification_failed=(
+                        tc.name in {"tests.run", "lint.run"} and not result.success
+                    ),
+                )
+            cost_ms = float(result.meta.cost_ms or 0.0)
+            self.timing.record_tool(tc.name, cost_ms)
             self._emit(
                 ToolCallCompleted(
                     name=tc.name,
                     success=result.success,
                     error=result.meta.error,
                     summary=_summarize_result(result),
+                    cost_ms=cost_ms,
                 )
             )
             if result.meta.error == "permission_denied" or (
@@ -518,26 +602,78 @@ class AgentLoop:
     def _with_system(
         self, history: list[Message], fsm_state: str, ctx: ExecutionContext
     ) -> list[Message]:
-        snapshot = format_execution_snapshot(
-            code_changes=ctx.execution.code_changes,
-            checks_required=ctx.verification.checks_required,
-            policy_reason=ctx.verification.policy_reason,
-            harness=ctx.verification.harness,
-            test_results=ctx.verification.test_results,
+        _ = fsm_state
+        tool_specs = self.tool_engine.list_tools(fsm_state)
+        reminders = build_reminders(self.reminder_facts) if self.reminder_facts else ()
+        nudge = (self.pending_nudge or "").strip()
+        if nudge:
+            reminders = (*reminders, nudge)
+            self.pending_nudge = None
+        repo_items = ()
+        if ctx.repository is not None:
+            repo_items = ctx.repository.items
+        compiled = compile_system_prompt(
+            PromptInputs(
+                user_query=ctx.request.user_query,
+                repo_path=ctx.request.repo_path,
+                tools=tool_specs,
+                environment=self.environment or {"repo_path": ctx.request.repo_path},
+                agent_state=self.agent_state,
+                task_complexity=ctx.request.task_complexity,
+                code_changes=ctx.execution.code_changes,
+                plan_tasks=ctx.planning.tasks,
+                repository_items=repo_items,
+                checks_required=ctx.verification.checks_required,
+                policy_reason=ctx.verification.policy_reason,
+                harness=ctx.verification.harness,
+                test_results=ctx.verification.test_results,
+                reminders=reminders,
+            )
         )
-        system = build_system_prompt(
-            fsm_state=fsm_state,
-            user_query=ctx.request.user_query,
-            repo_path=ctx.request.repo_path,
-            execution_snapshot=snapshot,
-        )
-        if history and history[0].role == "system":
-            return [replace(history[0], content=system), *history[1:]]
-        return [Message(role="system", content=system), *history]
+        body = list(history)
+        # System is request-local: never persist into controller history.
+        if body and body[0].role == "system":
+            body = body[1:]
+        out: list[Message] = [Message(role="system", content=compiled.system), *body]
+        reminder_msg = format_reminders_message(compiled.reminders)
+        if reminder_msg:
+            out.append(Message(role="user", content=reminder_msg))
+        return out
 
     def _emit(self, event: AgentEvent) -> None:
         if self.on_event is not None:
             self.on_event(event)
+
+    def _emit_timing_summary(self) -> None:
+        if self.timing.model_calls == 0 and self.timing.tool_calls == 0:
+            return
+        self._emit(
+            TimingSummary(
+                lines=tuple(self.timing.summary_lines()),
+                stats=self.timing.to_dict(),
+            )
+        )
+
+    def _result(
+        self,
+        *,
+        status: str,
+        final_text: str | None,
+        context: ExecutionContext,
+        error: str | None = None,
+        fsm_state: str = "INIT",
+        emit_timing: bool = False,
+    ) -> AgentResult:
+        if emit_timing:
+            self._emit_timing_summary()
+        return AgentResult(
+            status=status,  # type: ignore[arg-type]
+            final_text=final_text,
+            context=context,
+            error=error,
+            fsm_state=fsm_state,
+            timing=self.timing.to_dict(),
+        )
 
     def _stop(
         self,
@@ -548,11 +684,12 @@ class AgentLoop:
     ) -> AgentResult:
         if reason == "cancelled" or loop_state.cancel_requested:
             loop_state.status = "CANCELLED"
-            return AgentResult(
+            return self._result(
                 status="CANCELLED",
                 final_text=final_text,
                 context=ctx,
                 error="cancelled",
+                emit_timing=True,
             )
         if reason in {
             "max_iterations",
@@ -563,16 +700,20 @@ class AgentLoop:
         }:
             return self._blocked(loop_state, ctx, reason or "policy")
         if loop_state.status == "COMPLETED":
-            return AgentResult(
-                status="COMPLETED", final_text=final_text, context=ctx
+            return self._result(
+                status="COMPLETED",
+                final_text=final_text,
+                context=ctx,
+                emit_timing=True,
             )
         loop_state.status = "FAILED"
         self._emit(AgentFailed(reason or "stopped"))
-        return AgentResult(
+        return self._result(
             status="FAILED",
             final_text=final_text,
             context=ctx,
             error=reason,
+            emit_timing=True,
         )
 
     def _blocked(
@@ -580,11 +721,12 @@ class AgentLoop:
     ) -> AgentResult:
         loop_state.status = "BLOCKED"
         self._emit(AgentBlocked(reason))
-        return AgentResult(
+        return self._result(
             status="BLOCKED",
             final_text=None,
             context=ctx,
             error=reason,
+            emit_timing=True,
         )
 
 

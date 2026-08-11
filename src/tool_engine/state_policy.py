@@ -1,12 +1,21 @@
-"""FSM phase → allowed tool names (state-aware registry filter)."""
+"""FSM / agent state → allowed tool names (state-aware registry filter)."""
 
 from __future__ import annotations
 
 RUNTIME_STATES = frozenset(
-    {"INIT", "PLAN", "CONTEXT", "EXECUTE", "VERIFY", "REVIEW", "DONE", "CANCELLED"}
+    {
+        "INIT",
+        "AGENT",
+        "PLAN",
+        "CONTEXT",
+        "EXECUTE",
+        "VERIFY",
+        "REVIEW",
+        "DONE",
+        "CANCELLED",
+    }
 )
 
-# Intention-based tool catalogs used by allowlists below.
 _CONTEXT_ALL = frozenset({"context.resolve", "context.expand", "context.refresh"})
 _RNA_ALL = frozenset(
     {
@@ -27,32 +36,29 @@ _EXECUTOR_ALL = frozenset(
 _GIT_ALL = frozenset({"git.commit", "git.undo", "git.diff"})
 _VERIFY_ALL = frozenset({"verify.probe", "tests.run", "lint.run", "review.run"})
 _PLANNING_ALL = frozenset({"plan.set_tasks"})
-# VERIFY may inspect the tree and run approved shell checks without apply tools.
-_VERIFY_INSPECT = frozenset(
-    {
-        "context.refresh",
-        "rna.find_tests",
-        "rna.list_files",
-        "rna.read_file",
-        "executor.run",
-    }
+
+# Claude Code–style open surface for the continuous agent loop.
+AGENT_TOOLS = (
+    _CONTEXT_ALL
+    | _RNA_ALL
+    | _RESEARCH_ALL
+    | _EXECUTOR_ALL
+    | _GIT_ALL
+    | _VERIFY_ALL
+    | _PLANNING_ALL
 )
 
+# Legacy phase labels alias to AGENT during migration.
 STATE_ALLOWLIST: dict[str, frozenset[str]] = {
     "INIT": frozenset(),
     "DONE": frozenset(),
     "CANCELLED": frozenset(),
-    "PLAN": _CONTEXT_ALL | _RNA_ALL | _RESEARCH_ALL | _PLANNING_ALL,
-    "CONTEXT": _CONTEXT_ALL | _RNA_ALL | _RESEARCH_ALL | _PLANNING_ALL,
-    # Allow context.resolve in EXECUTE so the model can gather facts before apply.
-    "EXECUTE": frozenset({"context.refresh", "context.resolve"})
-    | _RNA_ALL
-    | _EXECUTOR_ALL
-    | _GIT_ALL
-    | _PLANNING_ALL
-    | frozenset({"tests.run"}),
-    "VERIFY": _VERIFY_INSPECT | _VERIFY_ALL | _PLANNING_ALL,
-    "REVIEW": _VERIFY_INSPECT | _VERIFY_ALL | _PLANNING_ALL,
+    "AGENT": AGENT_TOOLS,
+    "PLAN": AGENT_TOOLS,
+    "CONTEXT": AGENT_TOOLS,
+    "EXECUTE": AGENT_TOOLS,
+    "VERIFY": AGENT_TOOLS,
+    "REVIEW": AGENT_TOOLS,
 }
 
 

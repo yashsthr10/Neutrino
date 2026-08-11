@@ -80,6 +80,52 @@ class GitService:
             data={"undone_subject": subject, "output": out},
         )
 
+    def branch(self) -> GitOpResult:
+        code, out, err = self._run(["git", "rev-parse", "--abbrev-ref", "HEAD"])
+        if code != 0:
+            return GitOpResult(success=False, data={}, error=err or out or "not a git repo")
+        return GitOpResult(success=True, data={"branch": out.strip()})
+
+    def status(self) -> GitOpResult:
+        """Return porcelain status with a short human summary."""
+        code, out, err = self._run(["git", "status", "--porcelain"])
+        if code != 0:
+            return GitOpResult(success=False, data={}, error=err or out or "git status failed")
+        lines = [ln for ln in out.splitlines() if ln.strip()]
+        paths: list[str] = []
+        modified = 0
+        untracked = 0
+        for ln in lines:
+            # XY PATH or XY ORIG -> PATH
+            entry = ln[3:] if len(ln) > 3 else ln
+            if " -> " in entry:
+                entry = entry.split(" -> ", 1)[1]
+            path = entry.strip()
+            if path:
+                paths.append(path)
+            xy = ln[:2] if len(ln) >= 2 else "  "
+            if "?" in xy:
+                untracked += 1
+            else:
+                modified += 1
+        summary = "clean"
+        if lines:
+            parts: list[str] = []
+            if modified:
+                parts.append(f"{modified} modified")
+            if untracked:
+                parts.append(f"{untracked} untracked")
+            summary = ", ".join(parts) if parts else f"{len(lines)} change(s)"
+        return GitOpResult(
+            success=True,
+            data={
+                "clean": not lines,
+                "summary": summary,
+                "paths": paths,
+                "porcelain": out,
+            },
+        )
+
     def _run(self, args: list[str]) -> tuple[int, str, str]:
         try:
             proc = subprocess.run(

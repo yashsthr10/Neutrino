@@ -611,11 +611,11 @@ print(ctx.to_dict())     # JSON-serializable
 | Slice | Written by | Contains |
 |---|---|---|
 | `request` | Orchestrator (once) | Query, session, complexity |
-| `repository` | Context Manager only | Ranked repo facts |
-| `conversation` | Context Manager only | Memory slice for this step |
-| `planning` | Planner | Plan steps, current step |
-| `execution` | Executor | Code changes, tool results, status |
-| `verification` | Verifier | Tests, reviewer feedback |
+| `repository` | Context Manager (and orchestrator fold from `context.resolve`) | Ranked repo facts / working set |
+| `conversation` | Context Manager (and orchestrator fold from resolve) | Memory slice for this step |
+| `planning` | Agent via `plan.set_tasks` | Plan steps / checklist tasks |
+| `execution` | Orchestrator / agent tools | Code changes, tool results, status |
+| `verification` | Orchestrator / verify tools | Tests, harness, checks_required |
 | `metrics` | Whichever stage just ran | Token usage, per-stage cost |
 | `events` | Every stage (append-only) | Structured event log |
 
@@ -628,7 +628,7 @@ Input to `resolve` / `expand`.
 | Field | Type | Description |
 |---|---|---|
 | `task_description` | `str` | What the requesting agent is doing now |
-| `task_complexity` | `"SIMPLE"` / `"MEDIUM"` / `"COMPLEX"` | Drives how much retrieval is planned |
+| `task_complexity` | `"SIMPLE"` / `"MEDIUM"` / `"COMPLEX"` | Drives how much retrieval is planned (orchestrator maps `fast`/`deep`; not soft-phase routing) |
 | `requesting_agent` | `"planner"` / `"coder"` / `"verifier"` / `"reviewer"` | Contract the package is validated against |
 | `file_hints` | `tuple[str, ...]` | Known file anchors (priority over auto-detect) |
 | `symbol_hints` | `tuple[str, ...]` | Known symbol anchors |

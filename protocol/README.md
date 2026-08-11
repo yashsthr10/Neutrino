@@ -78,12 +78,12 @@ Secrets travel only in `credentials.set` request params (stdio between TUI and r
 |--------|-------------------|
 | `execution.started` | `{ task }` |
 | `state.changed` | `{ from, to }` |
-| `pipeline.progress` | `{ phase, status, step?, total? }` |
+| `pipeline.progress` | `{ phase, status, step?, total? }` — dummy/smoke may use PLAN/EXECUTE/VERIFY; live agent uses soft phases under hard `AGENT` |
 | `activity.delta` | `{ phaseId, text, newline? }` |
 | `log.line` | `{ message, level }` |
 | `diff.updated` | `{ path, oldText, newText }` |
 | `repo.tree` | `{ rootLabel, paths }` |
-| `status.snapshot` | `{ modeLabel, tokensUsed, fsmState, taskComplexity }` |
+| `status.snapshot` | `{ modeLabel, tokensUsed, fsmState, taskComplexity }` — `fsmState` may show soft phase (`DISCOVER`/…) while hard status is `AGENT` |
 | `context.summary` | `{ files, edges, tokensUsed, tokenBudget }` |
 | `approval.requested` | `{ requestId, summary, previewSnippet, fullFileText? }` |
 | `recovery.requested` | `{ message, options: [{id,label}] }` |

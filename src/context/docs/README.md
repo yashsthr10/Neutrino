@@ -7,7 +7,7 @@
 The Context Subsystem is the layer that decides **what an agent gets to see**, on every step of a run. It sits between two things that must never touch each other directly:
 
 - **RNA** — a read-only knowledge API that can answer any factual question about the repository, given a specific query.
-- **The Agent Layer** (Planner, Coder, Verifier, Reviewer) — which needs an already-assembled, already-bounded, already-relevant slice of information to do its job, not a knowledge API to query ad hoc.
+- **The Agent Layer** (continuous AGENT loop with soft DISCOVER/IMPLEMENT/VERIFY phases) — which needs an already-assembled, already-bounded, already-relevant slice of information to do its job, not a knowledge API to query ad hoc.
 
 Something has to sit in the middle and do the work of turning "what does this task need" into "here is the exact, bounded package of repository facts and conversation memory for this step." That is the Context Subsystem's entire job. It does not plan. It does not write code. It does not decide what to do next. It decides **what is worth knowing right now**, and hands that answer to whoever asked.
 
@@ -34,7 +34,7 @@ Every agent framework that survives contact with a real, non-trivial codebase en
 | Enforce a token/file/line budget | A truncation hack applied late, inconsistently | Context Manager (Compressor) |
 | Remember what was said earlier in the session | A raw, ever-growing message list appended to every prompt | Conversation Manager (Message Store + Summarizer) |
 | Recall a decision made three turns ago without replaying the whole transcript | Nothing — models re-derive or contradict earlier decisions | Conversation Manager (Decision Extractor + Retriever) |
-| Give every pipeline stage (Planner, Executor, Verifier) a single, consistent view of "where are we in this run" | A shared mutable dict, mutated from everywhere | ExecutionContext (immutable, ownership-partitioned state) |
+| Give the continuous AGENT loop a single, consistent view of "where are we in this run" | A shared mutable dict, mutated from everywhere | ExecutionContext (immutable, ownership-partitioned state) |
 
 The Context Subsystem's bet: treat context assembly with the same discipline RNA already applies to repository knowledge — **on-demand, bounded by default, degrade-gracefully, cache-aware, deterministic** — instead of letting every caller reinvent a smaller, worse version of the same pipeline.
 
@@ -72,7 +72,7 @@ Each component has exactly one reason to change. That is the entire point of the
 - The Context Subsystem does **not** decide *what to do* with a task — that is the Planner's job. It only decides what information the Planner (or Coder, Verifier, Reviewer) gets to see while doing its job.
 - The Context Manager does **not** hold conversation state, and the Conversation Manager does **not** hold repository state. Neither reaches into the other's storage.
 - ExecutionContext does **not** contain behavior. It is a data container with a functional-update API, not a service.
-- The Context Subsystem does **not** enforce FSM transitions, iteration caps, or reviewer gating — that remains the orchestrator's job (`docs/02_specs.md` §5, §7). The Context Subsystem only supplies the `token_usage`/`MetricsContext` numbers those policies are evaluated against.
+- The Context Subsystem does **not** enforce agent completion, iteration caps, or reviewer gating — that remains the orchestrator's job (`CompletionPolicy` + `AgentPolicy`; see [`../../orchestrator/README.md`](../../orchestrator/README.md) and [`../../agent/README.md`](../../agent/README.md)). The Context Subsystem only supplies the `token_usage`/`MetricsContext` numbers and retrieval packages those policies / prompts consume.
 - The Context Subsystem is **not** exposed to the LLM as a callable tool the way RNA is. It is host-side infrastructure that runs *before* a model call to build that call's input, not a tool a model invokes mid-conversation (`06_contract_and_safety.md` §1).
 
 ---

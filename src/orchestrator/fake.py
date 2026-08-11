@@ -113,8 +113,8 @@ class FakeOrchestratorPort:
             with self._lock:
                 self._cancel_requested = False
 
-            self._emit(PhaseMarker("PLAN"))
-            self._set_state("PLAN")
+            self._emit(PhaseMarker("AGENT"))
+            self._set_state("AGENT")
             self._bump_tokens(50)
             if not self._sleep_step(0.08):
                 return
@@ -125,10 +125,10 @@ class FakeOrchestratorPort:
                 "Drafting approach for null-safety…",
             ]
             for line in plan_lines:
-                self._emit(ThinkingDelta("PLAN", line, append_newline=True))
+                self._emit(ThinkingDelta("DISCOVER", line, append_newline=True))
                 if not self._sleep_step(0.12):
                     return
-            self._emit(PhaseStepComplete("PLAN", "plan ready"))
+            self._emit(PhaseStepComplete("DISCOVER", "plan ready"))
             self._bump_tokens(120)
             if not self._sleep_step(0.08):
                 return
@@ -148,8 +148,7 @@ class FakeOrchestratorPort:
                 )
             )
 
-            self._emit(PhaseMarker("EXECUTE"))
-            self._set_state("EXECUTE")
+            self._emit(PhaseMarker("IMPLEMENT"))
             self._emit(ToolCallEvent("read_file", "parser.py", True))
             self._bump_tokens(80)
             if not self._sleep_step(0.08):
@@ -222,15 +221,13 @@ class FakeOrchestratorPort:
                 self._emit(LogLine("(fake) Viewed full file in UI.", "info"))
 
             self._emit(PhaseMarker("VERIFY"))
-            self._set_state("VERIFY")
             self._emit(ToolCallEvent("run_tests", "pytest -q", True))
             self._bump_tokens(100)
             if not self._sleep_step(0.08):
                 return
             self._emit(LogLine("Tests passed.", "info"))
 
-            self._emit(PhaseMarker("REVIEW"))
-            self._set_state("REVIEW")
+            self._emit(PhaseMarker("DONE"))
             self._bump_tokens(60)
             if not self._sleep_step(0.06):
                 return

@@ -106,18 +106,20 @@ This gives three properties for free, without any additional code:
 
 ## 3. Ownership matrix
 
+The runtime today is a **continuous AGENT loop** (not a hard Planner→Executor→Verifier FSM). Soft phases live in the agent prompt; DONE is decided by orchestrator `CompletionPolicy`. Writers below are still one-writer-per-slice conventions:
+
 | Sub-context | Written by | Read by |
 |---|---|---|
 | `request` | Orchestrator, once, at creation — never updated after | Everyone |
-| `repository` | **Context Manager only** (via `ContextPackage.repository`) | Planner, Coder, Verifier, Reviewer |
-| `conversation` | **Context Manager only** (via `ContextPackage.conversation`) | Planner, Coder, Verifier, Reviewer |
-| `planning` | Planner only | Executor, Verifier, Reviewer, Context Manager (as a `ContextRequest` input signal) |
-| `execution` | Executor only | Verifier, Reviewer, Context Manager (`code_changes` feeds `verifier`'s `file_hints`, `03_context_composition.md` §2) |
-| `verification` | Verifier only | Reviewer, Orchestrator (gating decision) |
-| `metrics` | Whichever stage just ran, for its own cost/token contribution | Orchestrator (budget enforcement), TUI (`StatusSnapshot`) |
+| `repository` | Context Manager packages; orchestrator folds from successful `context.resolve` / expand / refresh | Agent tools / prompt L4 / TUI |
+| `conversation` | Context Manager packages; orchestrator may fold from resolve | Agent tools / prompt L4 |
+| `planning` | Agent via `plan.set_tasks` (orchestrator updates slice) | Prompt / TUI checklist |
+| `execution` | Orchestrator / execution tools (`executor.*`) | CompletionPolicy, Context Manager hints, TUI |
+| `verification` | Orchestrator / verify tools + harness policy seed | CompletionPolicy, TUI |
+| `metrics` | Whichever stage just ran, for its own cost/token contribution | Orchestrator (budget), TUI (`StatusSnapshot`) |
 | `events` | Every stage appends its own events; nobody removes any | Observability/logging, TUI, checkpoint/audit tooling |
 
-No sub-context has more than one legitimate writer. This is the same one-writer-per-slice discipline the Conversation Manager applies to its own message store (`04_conversation_memory.md` §1), just applied at the whole-execution scope instead of the whole-session scope.
+This is the same one-writer-per-slice discipline the Conversation Manager applies to its own message store (`04_conversation_memory.md` §1), applied at whole-execution scope. See [`../../orchestrator/README.md`](../../orchestrator/README.md).
 
 ---
 
@@ -129,13 +131,13 @@ Created
    │  ExecutionContext (version=0), all other sub-contexts at their defaults.
    ▼
 Updated
-   │  Each stage that runs calls exactly one with_*(), producing the next version.
-   │  Repeated for every stage of every iteration (Context Manager resolves context for a
-   │  step, Planner plans, Executor executes, Verifier verifies, Reviewer reviews, repeat).
+   │  Each tool/orchestrator step that mutates state calls the matching with_*(), producing
+   │  the next version. In the continuous AGENT loop this repeats across soft phases
+   │  (DISCOVER → IMPLEMENT → VERIFY → …) until CompletionPolicy returns DONE/BLOCKED.
    ▼
 Checkpointed
-   │  After each FSM state transition (docs/02_specs.md S5), the orchestrator persists the
-   │  current version (to.dict()) to Neutrino Manager's Execution History -- out of scope for
+   │  After meaningful run milestones (tool batches / completion decisions), the orchestrator may
+   │  persist the current version (to_dict()) to Execution History -- out of scope for
    │  this design set, but the hook is exactly "hand the orchestrator's current ExecutionContext
    │  reference to whatever the durable store is."  A crash/retry resumes from the last
    │  checkpointed version, not from scratch.
@@ -188,4 +190,4 @@ The old schema's constraint *"Must be the single source of truth"* is preserved 
 
 ## 6. Relationship to existing TUI-facing snapshots
 
-`src/ports/orchestrator_port.py` already defines `StatusSnapshot` (`mode_label`, `tokens_used`, `fsm_state`, `task_complexity`) and `ContextSummary` (`files`, `edges`, `tokens_used`, `token_budget`) as immutable events pushed to the TUI. Under this design, both are pure projections of one `ExecutionContext` version — `StatusSnapshot` reads `metrics` + `execution.status` + `request.task_complexity`; `ContextSummary` reads `repository.items` (filtered to `kind="file"`/`"import_edge"`) + `metrics.token_usage_*`. Neither snapshot needs to become a second source of truth; they are derivable, on demand, from whatever `ExecutionContext` version the orchestrator currently holds. This note exists only to confirm consistency with an already-defined contract elsewhere in the codebase — the TUI/orchestrator wiring itself is out of scope for this design set, per its own stated focus on the Context Subsystem alone.
+`src/ports/orchestrator_port.py` already defines `StatusSnapshot` (`mode_label`, `tokens_used`, `fsm_state`, `task_complexity`) and `ContextSummary` (`files`, `edges`, `tokens_used`, `token_budget`) as immutable events pushed to the TUI. Under this design, both are pure projections of one `ExecutionContext` version — `StatusSnapshot` reads `metrics` + soft/hard agent status + `request.task_complexity` (`fsm_state` may show soft phase while hard workflow status is `AGENT`); `ContextSummary` reads `repository.items` (filtered to `kind="file"`/`"import_edge"`) + `metrics.token_usage_*`. Neither snapshot needs to become a second source of truth; they are derivable, on demand, from whatever `ExecutionContext` version the orchestrator currently holds.

@@ -19,6 +19,15 @@ class ModelInvoked:
 
 
 @dataclass(frozen=True, slots=True)
+class ModelCompleted:
+    iteration: int
+    latency_ms: float
+    input_tokens: int = 0
+    output_tokens: int = 0
+    tool_count: int = 0
+
+
+@dataclass(frozen=True, slots=True)
 class ToolCallRequested:
     name: str
     arguments: dict[str, Any]
@@ -31,6 +40,7 @@ class ToolCallCompleted:
     success: bool
     error: str | None = None
     summary: str = ""
+    cost_ms: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,9 +71,18 @@ class AgentWaitingUser:
     summary: str
 
 
+@dataclass(frozen=True, slots=True)
+class TimingSummary:
+    """End-of-run (or on-demand) timing snapshot lines + dict."""
+
+    lines: tuple[str, ...]
+    stats: dict[str, Any]
+
+
 AgentEvent = Union[
     AgentIterationStarted,
     ModelInvoked,
+    ModelCompleted,
     ToolCallRequested,
     ToolCallCompleted,
     AgentIterationCompleted,
@@ -71,4 +90,5 @@ AgentEvent = Union[
     AgentCompleted,
     AgentFailed,
     AgentWaitingUser,
+    TimingSummary,
 ]

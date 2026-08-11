@@ -5,10 +5,13 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
+from typing import Any
+
 from src.agent.events import AgentEvent
 from src.agent.loop import AgentLoop, ContextUpdater
 from src.agent.policy import AgentPolicy
 from src.agent.state import AgentLoopState, AgentResult
+from src.agent.state_model import AgentState
 from src.context.runtime.execution_context import ExecutionContext
 from src.inference.models.request import Message
 from src.inference.ports.inference_port import InferencePort
@@ -24,6 +27,8 @@ class AgentController:
     policy: AgentPolicy = field(default_factory=AgentPolicy)
     on_event: Callable[[AgentEvent], None] | None = None
     auto_approve_shell: bool = False
+    environment: dict[str, Any] | None = None
+    agent_state: AgentState | None = None
 
     def __post_init__(self) -> None:
         self._loop = AgentLoop(
@@ -32,6 +37,8 @@ class AgentController:
             policy=self.policy,
             on_event=self.on_event,
             auto_approve_shell=self.auto_approve_shell,
+            environment=self.environment,
+            agent_state=self.agent_state or AgentState(),
         )
         self._state = AgentLoopState()
         self._messages: list[Message] = []
@@ -43,6 +50,17 @@ class AgentController:
     @property
     def messages(self) -> list[Message]:
         return self._messages
+
+    @property
+    def loop(self) -> AgentLoop:
+        return self._loop
+
+    def set_pending_nudge(self, text: str | None) -> None:
+        self._loop.pending_nudge = text
+
+    def refresh_environment(self, environment: dict[str, Any] | None) -> None:
+        self.environment = environment
+        self._loop.environment = environment
 
     def run(
         self,
@@ -56,6 +74,7 @@ class AgentController:
             query = user_query or context.request.user_query
             self._messages = [Message(role="user", content=query)]
         self._state = AgentLoopState()
+        self._loop.timing.reset()
         result = self._loop.run(
             context=context,
             fsm_state=fsm_state,

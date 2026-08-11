@@ -51,7 +51,7 @@ MessageRole = Literal["user", "assistant", "system", "tool"]
 DecisionCategory = Literal["architecture", "coding_preference", "plan", "constraint"]
 ```
 
-`TaskComplexity` is not a new enum invented for this subsystem — it is the same `{SIMPLE, MEDIUM, COMPLEX}` enum already defined as a system-wide invariant in `docs/02_specs.md` §6 and used by the Intelligence Engine's Strategy Selector. The Context Manager's Requirement Analyzer keys its retrieval rules off this exact enum (`03_context_composition.md` §2) precisely so that "how much should this task cost" is answered consistently everywhere in the system, not redefined per subsystem.
+`TaskComplexity` is the system-wide `{SIMPLE, MEDIUM, COMPLEX}` enum. Today the orchestrator maps runtime mode (`fast`→SIMPLE, `deep`→COMPLEX) into `RequestContext.task_complexity`; the model may also pass complexity on `context.resolve`. The Context Manager's Requirement Analyzer keys its retrieval rules off this enum (`03_context_composition.md` §2) so "how much should this task cost" stays consistent. It does **not** select soft agent phases or CompletionPolicy outcomes — those are independent (see [`../../orchestrator/README.md`](../../orchestrator/README.md)).
 
 ---
 
