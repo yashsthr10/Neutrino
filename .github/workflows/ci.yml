@@ -22,10 +22,21 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
 
-      - name: Install dependencies
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: tui/package-lock.json
+
+      - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev]"
 
-      - name: Format and lint (check)
+      - name: Install TUI dependencies
+        run: npm ci
+        working-directory: tui
+
+      - name: Format, lint, tests, coverage, TUI
         run: make check
