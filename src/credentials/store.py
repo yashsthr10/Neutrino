@@ -46,9 +46,7 @@ class MemoryStore:
 
     def list_keys(self, profile: str) -> list[str]:
         prefix = f"{profile}:"
-        return sorted(
-            k.split(":", 1)[1] for k in self._data if k.startswith(prefix)
-        )
+        return sorted(k.split(":", 1)[1] for k in self._data if k.startswith(prefix))
 
 
 class KeyringStore:
@@ -152,9 +150,7 @@ class EncryptedFileStore:
 
     def list_keys(self, profile: str) -> list[str]:
         prefix = f"{profile}:"
-        return sorted(
-            k.split(":", 1)[1] for k in self._load() if k.startswith(prefix)
-        )
+        return sorted(k.split(":", 1)[1] for k in self._load() if k.startswith(prefix))
 
 
 def default_store(*, prefer_keyring: bool = True) -> CredentialStore:

@@ -39,9 +39,11 @@ class ConversationManager:
         base = cache_dir or self.config.resolved_cache_dir()
         session_dir = base / "conversation" / session_id
         session_dir.mkdir(parents=True, exist_ok=True)
-        (base / ".gitignore").write_text("*\n", encoding="utf-8") if not (
-            base / ".gitignore"
-        ).exists() else None
+        (
+            (base / ".gitignore").write_text("*\n", encoding="utf-8")
+            if not (base / ".gitignore").exists()
+            else None
+        )
 
         self._store = MessageStore(session_dir / "messages.sqlite", session_id)
         self._index = MemoryIndex(session_dir / "memory_index" / "keyword.sqlite", session_id)
@@ -191,9 +193,7 @@ class ConversationManager:
         summary_id = summary.covers_through_message_id if summary else "none"
         return f"{len(msgs)}:{summary_id}"
 
-    def build_conversation_context(
-        self, *, query: str | None = None, recent_n: int = 20
-    ):
+    def build_conversation_context(self, *, query: str | None = None, recent_n: int = 20):
         from src.context.runtime.conversation_context import ConversationContext
 
         recent = self._store.get_recent(recent_n)
@@ -290,9 +290,7 @@ class ConversationManager:
             tokens_estimate=row["tokens_estimate"],
         )
 
-    def _load_decisions(
-        self, category: DecisionCategory | None, limit: int
-    ) -> list[Decision]:
+    def _load_decisions(self, category: DecisionCategory | None, limit: int) -> list[Decision]:
         with sqlite3.connect(str(self._decisions_db)) as conn:
             conn.row_factory = sqlite3.Row
             if category:
@@ -322,4 +320,3 @@ class ConversationManager:
             )
             for r in rows
         ]
-

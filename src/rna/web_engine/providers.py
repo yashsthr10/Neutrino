@@ -59,7 +59,9 @@ class DuckDuckGoProvider:
     name: str = "duckduckgo"
 
     def search(self, query: str, *, limit: int = 5) -> list[WebResult]:
-        params = urllib.parse.urlencode({"q": query, "format": "json", "no_html": 1, "skip_disambig": 1})
+        params = urllib.parse.urlencode(
+            {"q": query, "format": "json", "no_html": 1, "skip_disambig": 1}
+        )
         url = f"https://api.duckduckgo.com/?{params}"
         req = urllib.request.Request(url, headers={"User-Agent": "rna-web-engine/0.1"})
         with urllib.request.urlopen(req, timeout=15) as resp:  # noqa: S310

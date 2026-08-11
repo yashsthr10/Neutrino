@@ -89,7 +89,9 @@ class FakeConversationManager:
             data = [d for d in data if d.category == category]
         return ContextResult(
             data=list(data)[:limit],
-            meta=ContextMeta(cost_ms=0.0, cache_hit=False, truncated=False, sources=("conversation",)),
+            meta=ContextMeta(
+                cost_ms=0.0, cache_hit=False, truncated=False, sources=("conversation",)
+            ),
         )
 
     def get_recent(
@@ -101,7 +103,9 @@ class FakeConversationManager:
             msgs = [m for m in msgs if m.role in roles]
         return ContextResult(
             data=list(msgs[-n:]),
-            meta=ContextMeta(cost_ms=0.0, cache_hit=False, truncated=False, sources=("conversation",)),
+            meta=ContextMeta(
+                cost_ms=0.0, cache_hit=False, truncated=False, sources=("conversation",)
+            ),
         )
 
     def clear(self, *, keep_decisions: bool = True) -> None:
@@ -145,9 +149,7 @@ class FakeContextManager:
     def _empty_package(self, request: ContextRequest) -> ContextPackage:
         return ContextPackage(
             request=request,
-            repository=RepositoryContext(
-                items=(), tokens_estimate=0, truncated=False
-            ),
+            repository=RepositoryContext(items=(), tokens_estimate=0, truncated=False),
             conversation=ConversationContext(
                 recent_messages=(),
                 summary=None,

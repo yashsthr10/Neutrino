@@ -37,7 +37,9 @@ def parse_openai_chat_completion(payload: dict[str, Any]) -> InferenceResponse:
     else:
         finish_reason = "unknown"
     return InferenceResponse(
-        content=content if isinstance(content, str) else (None if content is None else str(content)),
+        content=(
+            content if isinstance(content, str) else (None if content is None else str(content))
+        ),
         tool_calls=tool_calls,
         usage=usage,
         finish_reason=finish_reason,

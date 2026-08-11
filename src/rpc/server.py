@@ -183,9 +183,7 @@ class RpcServer:
         if method == "inference.catalog":
             self._require_hello()
             profile = str(params.get("profile") or self._credential_profile)
-            return inference_rpc.catalog(
-                self._credentials, self._inference, profile=profile
-            )
+            return inference_rpc.catalog(self._credentials, self._inference, profile=profile)
         if method == "inference.listModels":
             self._require_hello()
             provider_id = str(params.get("providerId") or "").strip()
@@ -294,8 +292,7 @@ class RpcServer:
             logger.warning("Inference start after setModel failed: %s", exc)
             self.emit_ui_event(
                 LogLine(
-                    f"Model selected; provider start deferred ({exc}). "
-                    "First chat will retry.",
+                    f"Model selected; provider start deferred ({exc}). " "First chat will retry.",
                     "warning",
                 )
             )
@@ -313,9 +310,7 @@ class RpcServer:
             mgr = build_inference(self._inference, self._credentials, start=False)
             session_id = uuid.uuid4().hex
             rna = Rna(RnaConfig(repo_path=self._cwd))
-            engine = build_tool_engine_from_subsystem(
-                rna, session_id, repo_path=self._cwd
-            )
+            engine = build_tool_engine_from_subsystem(rna, session_id, repo_path=self._cwd)
             self._orch = AgentOrchestrator(
                 self.emit_ui_event,
                 self._cwd,
@@ -325,9 +320,7 @@ class RpcServer:
                 session_id=session_id,
             )
             logger.info("Promoted DummyOrchestrator -> AgentOrchestrator after setModel")
-            self.emit_ui_event(
-                LogLine("Agent backend ready with selected model", "info")
-            )
+            self.emit_ui_event(LogLine("Agent backend ready with selected model", "info"))
             try:
                 mgr.start()
             except Exception as exc:  # noqa: BLE001
@@ -502,9 +495,7 @@ def _build_orchestrator(
         )
         session_id = uuid.uuid4().hex
         rna = Rna(RnaConfig(repo_path=repo_path))
-        engine = build_tool_engine_from_subsystem(
-            rna, session_id, repo_path=repo_path
-        )
+        engine = build_tool_engine_from_subsystem(rna, session_id, repo_path=repo_path)
         logger.info("Using AgentOrchestrator")
         return AgentOrchestrator(
             emit,

@@ -51,9 +51,7 @@ class Compressor:
 
             if running + candidate.tokens_estimate > repo_budget:
                 truncated = True
-                provenance.append(
-                    f"{candidate.source_method}: dropped (budget) - {candidate.kind}"
-                )
+                provenance.append(f"{candidate.source_method}: dropped (budget) - {candidate.kind}")
                 continue
 
             kept_items.append(candidate)

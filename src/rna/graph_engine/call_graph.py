@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 from src.rna.adapters.registry import LanguageRegistry
-from src.rna.cache.keys import make_cache_key
 from src.rna.cache.store import CacheStore
 from src.rna.models import CallEdge, Confidence, WholeProgramGraph
-from src.rna.repo_analyzer.fingerprint import content_hash, repo_fingerprint
 
 
 class CallGraphService:
@@ -37,13 +35,17 @@ class CallGraphService:
 
         # Reuse cached whole-program graph if present
         for scope, graph in self._wp_graphs.items():
-            if file_hint and not (file_hint == scope or file_hint.startswith(scope.rstrip("/") + "/")):
+            if file_hint and not (
+                file_hint == scope or file_hint.startswith(scope.rstrip("/") + "/")
+            ):
                 continue
             short = symbol.split(".")[-1]
             edges = [
                 e
                 for e in graph.call_edges
-                if e.callee_name == symbol or e.callee_name == short or e.callee_name.endswith("." + short)
+                if e.callee_name == symbol
+                or e.callee_name == short
+                or e.callee_name.endswith("." + short)
             ]
             if edges:
                 truncated = len(edges) > limit

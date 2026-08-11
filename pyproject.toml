@@ -22,6 +22,7 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
+    "pytest-cov>=5.0",
     "ruff>=0.4.0",
     "black>=24.0",
 ]
@@ -88,6 +89,21 @@ norecursedirs = ["fixtures", ".git", "node_modules", ".rna_cache"]
 python_files = ["test_*.py"]
 # Fixture sample repos under tests/rna/fixtures contain test_*.py that are
 # sample code under analysis, not pytest modules.
+
+[tool.coverage.run]
+source = ["src"]
+branch = false
+omit = [
+    "src/**/__main__.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+]
 
 [tool.black]
 line-length = 100

@@ -37,9 +37,7 @@ def test_chat_and_health() -> None:
             )
         return httpx.Response(404)
 
-    client = httpx.Client(
-        transport=_transport(handler), base_url="http://test/v1", timeout=5.0
-    )
+    client = httpx.Client(transport=_transport(handler), base_url="http://test/v1", timeout=5.0)
     cfg = InferenceProviderConfig(model="llama3.2", base_url="http://test/v1")
     creds = ResolvedCredentials(
         provider_id="openai-compatible",
@@ -52,9 +50,7 @@ def test_chat_and_health() -> None:
     health = provider.health()
     assert health.ok
     assert "llama3.2" in health.models
-    resp = provider.chat(
-        InferenceRequest(messages=(Message(role="user", content="hi"),))
-    )
+    resp = provider.chat(InferenceRequest(messages=(Message(role="user", content="hi"),)))
     assert resp.content == "hello"
     assert resp.usage.input_tokens == 3
     provider.close()

@@ -202,11 +202,7 @@ class AgentOrchestrator:
         first = True
         while self._workflow.fsm_state not in {"DONE", "CANCELLED"}:
             fsm = "AGENT"
-            soft = (
-                controller.loop.agent_state.phase
-                if controller.loop.agent_state
-                else "DISCOVER"
-            )
+            soft = controller.loop.agent_state.phase if controller.loop.agent_state else "DISCOVER"
             self._emit(PhaseMarker(str(soft)))
             self._status()
 
@@ -318,9 +314,7 @@ class AgentOrchestrator:
                     controller.loop.agent_state.phase = "DONE"
                 old, new = self._workflow.mark_done()
                 self._emit(StateTransition(old, new))
-                self._ctx = self._ctx.with_execution(
-                    replace(self._ctx.execution, status="DONE")
-                )
+                self._ctx = self._ctx.with_execution(replace(self._ctx.execution, status="DONE"))
                 self._status()
                 self._emit_timing(controller)
                 self._emit(RunFinished(ok=True, message=decision.reason or "done"))
@@ -416,9 +410,11 @@ class AgentOrchestrator:
             changes = result.data.get("changes") or []
             execution = replace(
                 execution,
-                code_changes=ctx.execution.code_changes + tuple(changes)
-                if isinstance(changes, list)
-                else ctx.execution.code_changes,
+                code_changes=(
+                    ctx.execution.code_changes + tuple(changes)
+                    if isinstance(changes, list)
+                    else ctx.execution.code_changes
+                ),
             )
             # Refresh env dirty summary after writes.
             try:
@@ -627,8 +623,7 @@ def _fold_context_package(ctx: ExecutionContext, data: Any) -> ExecutionContext:
             RepositoryContext(
                 items=tuple(items),
                 tokens_estimate=int(
-                    data.get("tokens_estimate")
-                    or sum(i.tokens_estimate for i in items)
+                    data.get("tokens_estimate") or sum(i.tokens_estimate for i in items)
                 ),
                 truncated=bool(data.get("truncated")),
             )

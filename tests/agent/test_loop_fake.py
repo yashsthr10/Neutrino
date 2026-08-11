@@ -198,9 +198,7 @@ def test_loop_continuous_agent_write_path(engine, exec_repo: Path) -> None:
                     "a",
                 )
             ),
-            _resp_tools(
-                _tc("executor.apply", {"format": "search_replace", "patch": patch}, "b")
-            ),
+            _resp_tools(_tc("executor.apply", {"format": "search_replace", "patch": patch}, "b")),
             _resp_tools(_tc("tests.run", {}, "c")),
             _resp_final("tests green"),
         ]
@@ -225,9 +223,7 @@ def test_loop_continuous_agent_write_path(engine, exec_repo: Path) -> None:
 def test_loop_qa_path_without_apply(engine, exec_repo: Path) -> None:
     inference = ScriptedInference(
         [
-            _resp_tools(
-                _tc("context.resolve", {"task_description": "what is this"}, "a")
-            ),
+            _resp_tools(_tc("context.resolve", {"task_description": "what is this"}, "a")),
             _resp_final("A small sample package."),
         ]
     )
@@ -293,7 +289,9 @@ def test_loop_recovers_from_tool_use_failed_by_retry(engine, exec_repo: Path) ->
         messages=[Message(role="user", content="make a landing page")],
     )
     assert result.status == "COMPLETED"
-    assert (exec_repo / "hello.html").read_text(encoding="utf-8") == "<html><body>hi</body></html>\n"
+    assert (exec_repo / "hello.html").read_text(
+        encoding="utf-8"
+    ) == "<html><body>hi</body></html>\n"
     # First call failed, second applied, third finalized.
     assert len(inference.chat_calls) == 3
 

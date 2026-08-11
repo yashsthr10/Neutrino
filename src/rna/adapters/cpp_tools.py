@@ -146,7 +146,7 @@ class CppTier3Provider:
                     ln = int(line_no)
                 except Exception:  # noqa: BLE001
                     continue
-                if scope not in (".", "") and not rel.startswith(scope.rstrip("/") ):
+                if scope not in (".", "") and not rel.startswith(scope.rstrip("/")):
                     continue
                 symbols.append(
                     SymbolRef(

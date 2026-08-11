@@ -168,8 +168,7 @@ def map_ui_event(event: UIEvent) -> dict[str, Any]:
             "type": "plan.tasks_updated",
             "payload": {
                 "tasks": [
-                    {"id": t.id, "content": t.content, "status": t.status}
-                    for t in event.tasks
+                    {"id": t.id, "content": t.content, "status": t.status} for t in event.tasks
                 ]
             },
         }

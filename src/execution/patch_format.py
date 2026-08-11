@@ -93,9 +93,7 @@ def find_context_core(lines: List[str], context: List[str], start: int) -> Tuple
     return -1, 0
 
 
-def find_context(
-    lines: List[str], context: List[str], start: int, eof: bool
-) -> Tuple[int, int]:
+def find_context(lines: List[str], context: List[str], start: int, eof: bool) -> Tuple[int, int]:
     if eof:
         if len(lines) >= len(context):
             new_index, fuzz = find_context_core(lines, context, len(lines) - len(context))
@@ -233,9 +231,7 @@ def parse_patch_text(text: str, current_files: Dict[str, str]) -> Patch:
                 index += 1
             if path not in current_files:
                 raise DiffError(f"Update File Error - missing file content for: {path}")
-            action, index, fuzz = _parse_update_file_sections(
-                lines, index, current_files[path]
-            )
+            action, index, fuzz = _parse_update_file_sections(lines, index, current_files[path])
             action.path = path
             action.move_path = move_to
             existing = patch.actions.get(path)
@@ -372,9 +368,7 @@ def apply_update_content(text: str, action: PatchAction) -> str:
     for chunk in sorted(action.chunks, key=lambda c: c.orig_index):
         chunk_start_index = chunk.orig_index
         if chunk_start_index < current_orig_line_idx:
-            raise DiffError(
-                f"{action.path}: Overlapping or out-of-order chunk detected."
-            )
+            raise DiffError(f"{action.path}: Overlapping or out-of-order chunk detected.")
         dest_lines.extend(orig_lines[current_orig_line_idx:chunk_start_index])
         num_del = len(chunk.del_lines)
         actual_deleted = orig_lines[chunk_start_index : chunk_start_index + num_del]

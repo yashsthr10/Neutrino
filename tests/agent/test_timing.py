@@ -118,9 +118,7 @@ def test_loop_records_model_and_tool_timing() -> None:
             conversation=FakeConversationManager(),
             rna=FakeRna(),
             execution=ExecutionService(repo),
-            verification=VerificationService(
-                repo, test_command="true", lint_command="true"
-            ),
+            verification=VerificationService(repo, test_command="true", lint_command="true"),
             repo_path=repo,
         )
     )

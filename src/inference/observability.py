@@ -25,8 +25,10 @@ class CallLog:
     extra: dict[str, Any] = field(default_factory=dict)
 
     def emit(self) -> None:
-        event = "InferenceFailed" if self.error else (
-            "InferenceCompleted" if self.success else "InferenceStarted"
+        event = (
+            "InferenceFailed"
+            if self.error
+            else ("InferenceCompleted" if self.success else "InferenceStarted")
         )
         payload = {
             "event": event,

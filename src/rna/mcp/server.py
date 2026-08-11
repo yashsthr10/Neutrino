@@ -59,9 +59,7 @@ class RnaMcpServer:
                     "jsonrpc": "2.0",
                     "id": msg_id,
                     "result": {
-                        "content": [
-                            {"type": "text", "text": json.dumps(result, default=str)}
-                        ],
+                        "content": [{"type": "text", "text": json.dumps(result, default=str)}],
                         "isError": False,
                         "structuredContent": result,
                     },

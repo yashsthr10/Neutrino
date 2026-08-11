@@ -107,9 +107,7 @@ class LangChainProvider:
                         lc_tool_calls.append(
                             {"id": tc.id or tc.name, "name": tc.name, "args": args}
                         )
-                    lc_messages.append(
-                        AIMessage(content=m.content or "", tool_calls=lc_tool_calls)
-                    )
+                    lc_messages.append(AIMessage(content=m.content or "", tool_calls=lc_tool_calls))
                 else:
                     lc_messages.append(AIMessage(content=m.content or ""))
             elif m.role == "tool":
@@ -182,9 +180,7 @@ class LangChainProvider:
             try:
                 from langchain_openai import ChatOpenAI
             except ImportError as exc:
-                raise UnsupportedCapability(
-                    "pip install 'neutrino-cli[inference-openai]'"
-                ) from exc
+                raise UnsupportedCapability("pip install 'neutrino-cli[inference-openai]'") from exc
             kwargs: dict[str, Any] = {"model": model, "temperature": self._config.temperature}
             if key:
                 kwargs["api_key"] = key
@@ -198,9 +194,7 @@ class LangChainProvider:
             try:
                 from langchain_openai import ChatOpenAI
             except ImportError as exc:
-                raise UnsupportedCapability(
-                    "pip install 'neutrino-cli[inference-openai]'"
-                ) from exc
+                raise UnsupportedCapability("pip install 'neutrino-cli[inference-openai]'") from exc
             return ChatOpenAI(
                 model=model,
                 api_key=key,
@@ -221,9 +215,7 @@ class LangChainProvider:
             try:
                 from langchain_openai import AzureChatOpenAI
             except ImportError as exc:
-                raise UnsupportedCapability(
-                    "pip install 'neutrino-cli[inference-azure]'"
-                ) from exc
+                raise UnsupportedCapability("pip install 'neutrino-cli[inference-azure]'") from exc
             endpoint = (
                 self._config.azure_endpoint
                 or self._credentials.hints.get("azure_endpoint")
@@ -268,9 +260,7 @@ class LangChainProvider:
             try:
                 from langchain_google_genai import ChatGoogleGenerativeAI
             except ImportError as exc:
-                raise UnsupportedCapability(
-                    "pip install 'neutrino-cli[inference-google]'"
-                ) from exc
+                raise UnsupportedCapability("pip install 'neutrino-cli[inference-google]'") from exc
             return ChatGoogleGenerativeAI(
                 model=model, google_api_key=key, temperature=self._config.temperature
             )
@@ -279,9 +269,7 @@ class LangChainProvider:
             try:
                 from langchain_groq import ChatGroq
             except ImportError as exc:
-                raise UnsupportedCapability(
-                    "pip install 'neutrino-cli[inference-groq]'"
-                ) from exc
+                raise UnsupportedCapability("pip install 'neutrino-cli[inference-groq]'") from exc
             return ChatGroq(model=model, api_key=key, temperature=self._config.temperature)
 
         raise UnsupportedCapability(f"Unsupported native vendor: {vendor}")
@@ -393,9 +381,6 @@ def _openrouter_base_url(configured: str | None) -> str:
     if not configured or not configured.strip():
         return _OPENROUTER_DEFAULT_BASE
     lower = configured.strip().lower()
-    if any(
-        token in lower
-        for token in ("127.0.0.1", "localhost", "0.0.0.0", ":11434", "/ollama")
-    ):
+    if any(token in lower for token in ("127.0.0.1", "localhost", "0.0.0.0", ":11434", "/ollama")):
         return _OPENROUTER_DEFAULT_BASE
     return configured.rstrip("/")

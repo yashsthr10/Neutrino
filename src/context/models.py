@@ -13,7 +13,11 @@ from src.context.runtime.conversation_context import (
     Message,
     MessageRole,
 )
-from src.context.runtime.repository_context import ItemKind, RepositoryContext, RepositoryContextItem
+from src.context.runtime.repository_context import (
+    ItemKind,
+    RepositoryContext,
+    RepositoryContextItem,
+)
 from src.context.runtime.request_context import RequestingAgent, TaskComplexity
 
 T = TypeVar("T")

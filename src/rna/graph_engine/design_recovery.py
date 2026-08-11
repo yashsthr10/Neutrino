@@ -58,9 +58,7 @@ class DesignRecovery:
         if not syms:
             return WorkflowTrace(entrypoint=entrypoint, steps=(), truncated_by_depth=False)
         start = syms[0]
-        steps: list[WorkflowStep] = [
-            WorkflowStep(symbol=start, depth=0, call_site_line=None)
-        ]
+        steps: list[WorkflowStep] = [WorkflowStep(symbol=start, depth=0, call_site_line=None)]
         visited: set[str] = {f"{start.file}:{start.name}"}
         queue: deque[tuple[SymbolRef, int]] = deque([(start, 0)])
         truncated = False
@@ -152,7 +150,11 @@ class DesignRecovery:
         nodes = tuple(
             HLDNode(
                 id=n,
-                kind="external_dependency" if n.startswith("ext:") else ("package" if "/" not in n.strip(".") else "module"),
+                kind=(
+                    "external_dependency"
+                    if n.startswith("ext:")
+                    else ("package" if "/" not in n.strip(".") else "module")
+                ),
                 entrypoint=n in entrypoints,
             )
             for n in sorted(nodes_set)
@@ -234,11 +236,7 @@ class DesignRecovery:
         if structural is not None:
             files = self.tree.list_files()
             scope_n = scope.rstrip("/")
-            scoped = [
-                f
-                for f in files
-                if f == scope_n or f.startswith(scope_n + "/") or f == scope
-            ]
+            scoped = [f for f in files if f == scope_n or f.startswith(scope_n + "/") or f == scope]
             if (self.registry.repo_root / scope).is_file():
                 scoped = [scope]
             for f in scoped:
@@ -311,7 +309,15 @@ class DesignRecovery:
         except OSError:
             return False
         name = Path(path).name
-        if name in {"main.py", "main.go", "main.rs", "index.js", "index.ts", "app.py", "__main__.py"}:
+        if name in {
+            "main.py",
+            "main.go",
+            "main.rs",
+            "index.js",
+            "index.ts",
+            "app.py",
+            "__main__.py",
+        }:
             return True
         if 'if __name__ == "__main__"' in text or "if __name__ == '__main__'" in text:
             return True

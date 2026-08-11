@@ -80,7 +80,5 @@ def test_edit_formats_only_when_apply_present() -> None:
             parameters=(ToolParam("pattern", "string", True, "p"),),
         )
     ]
-    compiled = compile_system_prompt(
-        PromptInputs(user_query="list", repo_path="/r", tools=tools)
-    )
+    compiled = compile_system_prompt(PromptInputs(user_query="list", repo_path="/r", tools=tools))
     assert "*** Begin Patch" not in compiled.system

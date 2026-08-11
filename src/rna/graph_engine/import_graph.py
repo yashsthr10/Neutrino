@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 
-from src.rna.adapters.base import EXT_TO_LANGUAGE, detect_language
+from src.rna.adapters.base import detect_language
 from src.rna.adapters.registry import LanguageRegistry
 from src.rna.models import ImportEdge, ImportGraph
 from src.rna.repo_analyzer.tree import RepoTree

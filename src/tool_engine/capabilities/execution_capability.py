@@ -102,7 +102,5 @@ class ExecutionCapability(CapabilityBase):
                     else (result.stderr or None)
                 ),
             ),
-            errors=()
-            if result.success
-            else (result.stderr or "command failed",),
+            errors=() if result.success else (result.stderr or "command failed",),
         )

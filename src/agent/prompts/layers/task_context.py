@@ -73,18 +73,13 @@ def render_task_context(
     if checks_required is None:
         lines.append("VERIFY policy: (not computed — call `verify.probe` if changing code)")
     elif checks_required:
-        lines.append(
-            f"VERIFY policy: checks **required** ({policy_reason or 'harness_present'})."
-        )
+        lines.append(f"VERIFY policy: checks **required** ({policy_reason or 'harness_present'}).")
     else:
-        lines.append(
-            f"VERIFY policy: checks **not required** ({policy_reason or 'waived'})."
-        )
+        lines.append(f"VERIFY policy: checks **not required** ({policy_reason or 'waived'}).")
 
     if isinstance(harness, dict):
         lines.append(
-            f"Harness: has_tests={harness.get('has_tests')}, "
-            f"has_lint={harness.get('has_lint')}"
+            f"Harness: has_tests={harness.get('has_tests')}, " f"has_lint={harness.get('has_lint')}"
         )
     if isinstance(test_results, dict):
         lines.append(f"Last tests.run success: {test_results.get('success')}")

@@ -60,9 +60,7 @@ def _ctx(repo: Path, *, changes: tuple = ()) -> ExecutionContext:
 
 def test_completion_no_writes_is_done(tmp_path: Path) -> None:
     tracker = CompletionTracker()
-    decision = evaluate_completion(
-        _ctx(tmp_path), tracker, repo_path=tmp_path, agent_final=True
-    )
+    decision = evaluate_completion(_ctx(tmp_path), tracker, repo_path=tmp_path, agent_final=True)
     assert decision.kind == CompletionDecisionKind.DONE
     assert decision.reason == "no_writes"
 

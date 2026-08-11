@@ -50,7 +50,9 @@ class RequirementAnalyzer:
         if complexity in ("MEDIUM", "COMPLEX"):
             for s in symbols:
                 calls.append(("get_symbol", {"name": s, "file_hint": hints[0] if hints else None}))
-                calls.append(("get_callers", {"symbol": s, "file_hint": hints[0] if hints else None}))
+                calls.append(
+                    ("get_callers", {"symbol": s, "file_hint": hints[0] if hints else None})
+                )
             if hints:
                 scope = str(PurePosixPath(hints[0]).parent)
                 if scope == ".":

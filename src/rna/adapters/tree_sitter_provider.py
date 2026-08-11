@@ -250,7 +250,10 @@ class TreeSitterProvider:
                         rel = str(p.relative_to(self.repo_root)).replace("\\", "/")
                     except ValueError:
                         continue
-                    if any(part in {".git", "node_modules", ".venv", "venv", "__pycache__"} for part in Path(rel).parts):
+                    if any(
+                        part in {".git", "node_modules", ".venv", "venv", "__pycache__"}
+                        for part in Path(rel).parts
+                    ):
                         continue
                     candidates.append(rel)
         results: list[SymbolRef] = []
@@ -262,11 +265,18 @@ class TreeSitterProvider:
         if "." in name and not results:
             class_name, method_name = name.rsplit(".", 1)
             for rel in candidates:
-                class_syms = [s for s in self.symbols_in_file(rel) if s.name == class_name and s.kind == "class"]
+                class_syms = [
+                    s
+                    for s in self.symbols_in_file(rel)
+                    if s.name == class_name and s.kind == "class"
+                ]
                 if not class_syms:
                     continue
                 for sym in self.symbols_in_file(rel):
-                    if sym.name == method_name and class_syms[0].line_start <= sym.line_start <= class_syms[0].line_end:
+                    if (
+                        sym.name == method_name
+                        and class_syms[0].line_start <= sym.line_start <= class_syms[0].line_end
+                    ):
                         results.append(sym)
         return results
 
@@ -278,7 +288,9 @@ class TreeSitterProvider:
         if not qsrc:
             # fallback regex for python
             if self.language == "python":
-                return self._python_imports_regex(file_path, source.decode("utf-8", errors="replace"))
+                return self._python_imports_regex(
+                    file_path, source.decode("utf-8", errors="replace")
+                )
             return []
         caps = self._query_captures(source, qsrc)
         mods = caps.get("mod", [])
@@ -305,16 +317,24 @@ class TreeSitterProvider:
         edges: list[ImportEdge] = []
         for m in re.finditer(r"^\s*from\s+([\w\.]+)\s+import\s+(.+)$", text, re.M):
             mod = m.group(1)
-            syms = tuple(s.strip().split(" as ")[0] for s in m.group(2).split(",") if s.strip() and s.strip() != "(")
+            syms = tuple(
+                s.strip().split(" as ")[0]
+                for s in m.group(2).split(",")
+                if s.strip() and s.strip() != "("
+            )
             resolved, external = self._resolve_import(file_path, mod)
-            edges.append(ImportEdge(from_file=file_path, to=resolved, external=external, symbols=syms))
+            edges.append(
+                ImportEdge(from_file=file_path, to=resolved, external=external, symbols=syms)
+            )
         for m in re.finditer(r"^\s*import\s+([\w\.]+(?:\s*,\s*[\w\.]+)*)", text, re.M):
             for part in m.group(1).split(","):
                 mod = part.strip().split(" as ")[0].strip()
                 if not mod:
                     continue
                 resolved, external = self._resolve_import(file_path, mod)
-                edges.append(ImportEdge(from_file=file_path, to=resolved, external=external, symbols=()))
+                edges.append(
+                    ImportEdge(from_file=file_path, to=resolved, external=external, symbols=())
+                )
         return edges
 
     def _resolve_import(self, from_file: str, module: str) -> tuple[str, bool]:
@@ -356,9 +376,9 @@ class TreeSitterProvider:
 
     def _enclosing_function(self, source: bytes, line: int) -> SymbolRef | None:
         """Best-effort: find innermost function/method covering `line` (1-indexed)."""
-        rel_syms: list[SymbolRef] = []
-        # We need a file path — callers pass via find_callers scan
-        return None  # filled by find_callers_in_file
+        # Stub — real lookup is filled via find_callers_in_file.
+        _ = (source, line)
+        return None
 
     def find_callers(self, symbol: str, file_hint: str | None) -> list[CallEdge]:
         short = symbol.split(".")[-1]
@@ -374,7 +394,10 @@ class TreeSitterProvider:
                     rel = str(p.relative_to(self.repo_root)).replace("\\", "/")
                 except ValueError:
                     continue
-                if any(part in {".git", "node_modules", ".venv", "venv", "__pycache__"} for part in Path(rel).parts):
+                if any(
+                    part in {".git", "node_modules", ".venv", "venv", "__pycache__"}
+                    for part in Path(rel).parts
+                ):
                     continue
                 if rel not in files:
                     files.append(rel)

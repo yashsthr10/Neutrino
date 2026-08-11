@@ -44,9 +44,7 @@ def _to_jsonable(value: Any) -> Any:
 @dataclass(frozen=True, slots=True)
 class SymbolRef:
     name: str
-    kind: Literal[
-        "function", "method", "class", "interface", "struct", "variable", "constant"
-    ]
+    kind: Literal["function", "method", "class", "interface", "struct", "variable", "constant"]
     file: str
     line_start: int
     line_end: int

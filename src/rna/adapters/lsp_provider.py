@@ -6,7 +6,6 @@ import json
 import logging
 import subprocess
 import threading
-import uuid
 from pathlib import Path
 from typing import Any
 

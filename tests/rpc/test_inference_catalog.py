@@ -108,7 +108,10 @@ def test_list_models_blocked_without_cred(server) -> None:  # type: ignore[no-un
     )
     assert resp is not None
     assert "error" in resp
-    assert "credentials" in resp["error"]["message"].lower() or "auth" in resp["error"]["message"].lower()
+    assert (
+        "credentials" in resp["error"]["message"].lower()
+        or "auth" in resp["error"]["message"].lower()
+    )
 
 
 def test_set_model_openai_compatible(server, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]

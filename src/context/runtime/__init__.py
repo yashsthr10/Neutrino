@@ -15,7 +15,11 @@ from src.context.runtime.execution_context import ExecutionContext
 from src.context.runtime.execution_state import ExecutionState
 from src.context.runtime.metrics_context import MetricsContext
 from src.context.runtime.planning_context import PlanningContext
-from src.context.runtime.repository_context import ItemKind, RepositoryContext, RepositoryContextItem
+from src.context.runtime.repository_context import (
+    ItemKind,
+    RepositoryContext,
+    RepositoryContextItem,
+)
 from src.context.runtime.request_context import RequestContext, RequestingAgent, TaskComplexity
 from src.context.runtime.verification_context import VerificationContext
 

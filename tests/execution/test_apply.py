@@ -52,9 +52,11 @@ def missing():
     assert result.success is False
     assert result.failures
     assert result.reflection
-    assert "SEARCH" in result.reflection or "retry" in result.reflection.lower() or "exact" in (
-        result.reflection or ""
-    ).lower()
+    assert (
+        "SEARCH" in result.reflection
+        or "retry" in result.reflection.lower()
+        or "exact" in (result.reflection or "").lower()
+    )
 
 
 def test_patch_format_update(repo: Path) -> None:

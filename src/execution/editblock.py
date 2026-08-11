@@ -36,9 +36,7 @@ def perfect_replace(
     return None
 
 
-def match_but_for_leading_whitespace(
-    whole_lines: list[str], part_lines: list[str]
-) -> str | None:
+def match_but_for_leading_whitespace(whole_lines: list[str], part_lines: list[str]) -> str | None:
     num = len(whole_lines)
     if not all(whole_lines[i].lstrip() == part_lines[i].lstrip() for i in range(num)):
         return None
@@ -92,9 +90,7 @@ def try_dotdotdots(whole: str, part: str, replace: str) -> str | None:
         raise ValueError("Unpaired ... in SEARCH/REPLACE block")
     if len(part_pieces) == 1:
         return None
-    all_dots_match = all(
-        part_pieces[i] == replace_pieces[i] for i in range(1, len(part_pieces), 2)
-    )
+    all_dots_match = all(part_pieces[i] == replace_pieces[i] for i in range(1, len(part_pieces), 2))
     if not all_dots_match:
         raise ValueError("Unmatched ... in SEARCH/REPLACE block")
 

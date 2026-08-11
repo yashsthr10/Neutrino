@@ -55,9 +55,7 @@ class TimingStats:
         total = self.wall_accounted_ms or 1.0
         model_pct = 100.0 * self.model_ms_total / total
         tool_pct = 100.0 * self.tool_ms_total / total
-        avg_model = (
-            self.model_ms_total / self.model_calls if self.model_calls else 0.0
-        )
+        avg_model = self.model_ms_total / self.model_calls if self.model_calls else 0.0
         lines = [
             (
                 f"timing: model {self.model_ms_total:.0f}ms "
@@ -73,14 +71,11 @@ class TimingStats:
                 f"(accounted wall {self.wall_accounted_ms:.0f}ms)"
             ),
         ]
-        ranked = sorted(
-            self.tool_ms_by_name.items(), key=lambda kv: kv[1], reverse=True
-        )[:top_tools]
+        ranked = sorted(self.tool_ms_by_name.items(), key=lambda kv: kv[1], reverse=True)[
+            :top_tools
+        ]
         if ranked:
-            parts = [
-                f"{name}={ms:.0f}ms×{self.tool_count_by_name[name]}"
-                for name, ms in ranked
-            ]
+            parts = [f"{name}={ms:.0f}ms×{self.tool_count_by_name[name]}" for name, ms in ranked]
             lines.append("timing: top tools " + ", ".join(parts))
         return lines
 
@@ -91,9 +86,7 @@ class TimingStats:
             "model_ms_max": round(self.model_ms_max, 2),
             "tool_calls": self.tool_calls,
             "tool_ms_total": round(self.tool_ms_total, 2),
-            "tool_ms_by_name": {
-                k: round(v, 2) for k, v in sorted(self.tool_ms_by_name.items())
-            },
+            "tool_ms_by_name": {k: round(v, 2) for k, v in sorted(self.tool_ms_by_name.items())},
             "tool_count_by_name": dict(sorted(self.tool_count_by_name.items())),
             "input_tokens": self.input_tokens,
             "output_tokens": self.output_tokens,

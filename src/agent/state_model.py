@@ -61,8 +61,10 @@ def derive_agent_state(
         return state
 
     # Current tests.run / lint.run success counts even when ctx flags lag.
-    verification_passed = tests_succeeded or lint_succeeded or (
-        tool_name in {"tests.run", "lint.run"} and success is True
+    verification_passed = (
+        tests_succeeded
+        or lint_succeeded
+        or (tool_name in {"tests.run", "lint.run"} and success is True)
     )
 
     # Applied + (checks passed or not required) — must run before IMPLEMENT,

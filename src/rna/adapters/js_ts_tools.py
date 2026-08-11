@@ -109,7 +109,9 @@ class JsTsTier3Provider:
                     ImportEdge(
                         from_file=src,
                         to=dep.get("resolved") or dep.get("module", ""),
-                        external=bool(dep.get("dependencyTypes") and "npm" in str(dep.get("dependencyTypes"))),
+                        external=bool(
+                            dep.get("dependencyTypes") and "npm" in str(dep.get("dependencyTypes"))
+                        ),
                     )
                 )
         return edges

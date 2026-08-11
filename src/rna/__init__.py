@@ -29,7 +29,9 @@ from src.rna.models import (
 class RnaPort(Protocol):
     """Read-only knowledge API over a repository. No side effects, no LLM calls."""
 
-    def get_symbol(self, name: str, *, file_hint: str | None = None) -> RnaResult[list[SymbolRef]]: ...
+    def get_symbol(
+        self, name: str, *, file_hint: str | None = None
+    ) -> RnaResult[list[SymbolRef]]: ...
 
     def get_file(
         self,

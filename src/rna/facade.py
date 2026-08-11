@@ -121,9 +121,7 @@ class Rna:
                 meta=RnaMeta(cost_ms=cost, cache_hit=False, truncated=truncated),
             )
 
-    def get_symbol(
-        self, name: str, *, file_hint: str | None = None
-    ) -> RnaResult[list[SymbolRef]]:
+    def get_symbol(self, name: str, *, file_hint: str | None = None) -> RnaResult[list[SymbolRef]]:
         with timed_call("get_symbol", f"name={name}") as log:
             t0 = time.perf_counter()
             fp = self._fp()
@@ -248,9 +246,7 @@ class Rna:
     ) -> RnaResult[list[SearchHit]]:
         with timed_call("search", f"query={query[:80]}") as log:
             t0 = time.perf_counter()
-            hits, degraded, reason = self.lexical.search(
-                query, glob=glob, limit=limit, regex=regex
-            )
+            hits, degraded, reason = self.lexical.search(query, glob=glob, limit=limit, regex=regex)
             cost = (time.perf_counter() - t0) * 1000
             log.degraded = degraded
             return RnaResult(
@@ -307,10 +303,8 @@ class Rna:
                 ),
             )
 
-    def get_workflow(
-        self, entrypoint: str, *, max_depth: int = 4
-    ) -> RnaResult[WorkflowTrace]:
-        with timed_call("get_workflow", f"entrypoint={entrypoint}") as log:
+    def get_workflow(self, entrypoint: str, *, max_depth: int = 4) -> RnaResult[WorkflowTrace]:
+        with timed_call("get_workflow", f"entrypoint={entrypoint}"):
             t0 = time.perf_counter()
             trace = self._ensure_design().get_workflow(entrypoint, max_depth=max_depth)
             cost = (time.perf_counter() - t0) * 1000
@@ -353,9 +347,7 @@ class Rna:
     ) -> RnaResult[LLDModel]:
         with timed_call("get_lld", f"scope={scope}") as log:
             t0 = time.perf_counter()
-            model, degraded, reason, conf = self._ensure_design().get_lld(
-                scope, format=format
-            )
+            model, degraded, reason, conf = self._ensure_design().get_lld(scope, format=format)
             cost = (time.perf_counter() - t0) * 1000
             log.degraded = degraded
             log.confidence = conf
@@ -406,7 +398,9 @@ class Rna:
             )
 
     def google_search(self, query: str, *, limit: int = 5) -> RnaResult[list[WebResult]]:
-        summary = "query=<redacted>" if not self.config.log_web_query_text else f"query={query[:80]}"
+        summary = (
+            "query=<redacted>" if not self.config.log_web_query_text else f"query={query[:80]}"
+        )
         with timed_call("google_search", summary) as log:
             t0 = time.perf_counter()
             results, err, hit = self._ensure_web().search(query, limit=limit)

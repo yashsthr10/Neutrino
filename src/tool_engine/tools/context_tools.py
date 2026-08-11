@@ -4,9 +4,7 @@ from __future__ import annotations
 
 from src.tool_engine.models import ToolParam, ToolSpec
 
-_STATES = frozenset(
-    {"AGENT", "PLAN", "CONTEXT", "EXECUTE", "VERIFY", "REVIEW"}
-)
+_STATES = frozenset({"AGENT", "PLAN", "CONTEXT", "EXECUTE", "VERIFY", "REVIEW"})
 
 
 def context_tool_specs() -> list[ToolSpec]:

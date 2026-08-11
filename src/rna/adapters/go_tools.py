@@ -12,7 +12,7 @@ from src.rna.models import CallEdge, ImportEdge, SymbolRef, WholeProgramGraph
 
 logger = logging.getLogger("rna.go_tools")
 
-_CALLGRAPH_SNIPPET = r'''
+_CALLGRAPH_SNIPPET = r"""
 package main
 import (
   "fmt"
@@ -36,7 +36,7 @@ func main() {
     return nil
   })
 }
-'''
+"""
 
 
 class GoTier3Provider:

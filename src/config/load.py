@@ -68,9 +68,7 @@ def _write_toml(path: Path, data: dict[str, Any]) -> None:
             emit_table(child, value, depth=depth + 1)
 
     # Top-level scalars first (none expected today), then tables.
-    top_scalars = {
-        k: v for k, v in data.items() if v is not None and not isinstance(v, dict)
-    }
+    top_scalars = {k: v for k, v in data.items() if v is not None and not isinstance(v, dict)}
     if top_scalars:
         emit_table(None, top_scalars)
     for key, value in data.items():
@@ -162,9 +160,7 @@ def load_merged_settings(
 
     merged: dict[str, Any] = {}
     merged = _merge_dict(merged, _read_toml(user_config or user_config_file()))
-    merged = _merge_dict(
-        merged, _read_toml(project_config or project_config_file(root))
-    )
+    merged = _merge_dict(merged, _read_toml(project_config or project_config_file(root)))
     if config_path is not None and config_path.is_file():
         merged = _merge_dict(merged, _read_toml(config_path))
 

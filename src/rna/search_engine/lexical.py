@@ -152,9 +152,7 @@ class LexicalSearch:
                 continue
             for i, line in enumerate(text.splitlines(), start=1):
                 if pattern.search(line):
-                    hits.append(
-                        SearchHit(file=rel, line=i, snippet=line.strip(), match=query)
-                    )
+                    hits.append(SearchHit(file=rel, line=i, snippet=line.strip(), match=query))
                     if len(hits) >= limit:
                         return hits
         return hits

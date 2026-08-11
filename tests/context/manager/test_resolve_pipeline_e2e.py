@@ -41,7 +41,7 @@ def test_resolve_cache_hit(context_manager: ContextManager) -> None:
         file_hints=("pkg/parser.py",),
         symbol_hints=("parse_request",),
     )
-    first = context_manager.resolve(req)
+    context_manager.resolve(req)
     rna_calls_first = context_manager.last_rna_calls
     assert rna_calls_first > 0
     second = context_manager.resolve(req)

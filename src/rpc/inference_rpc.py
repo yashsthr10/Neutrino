@@ -138,7 +138,12 @@ def config_for_provider(
     kwargs: dict[str, Any] = {
         "type": "native",
         "vendor": provider_id,
-        "model": model or (base.model if base.provider_id() == provider_id else CATALOG_MODELS.get(provider_id, ("default",))[0]),
+        "model": model
+        or (
+            base.model
+            if base.provider_id() == provider_id
+            else CATALOG_MODELS.get(provider_id, ("default",))[0]
+        ),
         "base_url": None,
         "temperature": base.temperature,
         "max_tokens": base.max_tokens,
@@ -155,7 +160,9 @@ def config_for_provider(
     }
     # Azure/Bedrock validators require fields — carry from active when switching to same family
     if provider_id == "azure_openai":
-        kwargs["azure_endpoint"] = base.azure_endpoint or base.base_url or "https://example.openai.azure.com"
+        kwargs["azure_endpoint"] = (
+            base.azure_endpoint or base.base_url or "https://example.openai.azure.com"
+        )
         kwargs["api_version"] = base.api_version or "2024-02-15-preview"
         kwargs["deployment"] = base.deployment or kwargs["model"]
         kwargs["base_url"] = None
@@ -193,8 +200,7 @@ def _resolve_openrouter_base_url(
 def _looks_like_local_openai_compatible(url: str) -> bool:
     lower = url.strip().lower()
     return any(
-        token in lower
-        for token in ("127.0.0.1", "localhost", "0.0.0.0", ":11434", "/ollama")
+        token in lower for token in ("127.0.0.1", "localhost", "0.0.0.0", ":11434", "/ollama")
     )
 
 

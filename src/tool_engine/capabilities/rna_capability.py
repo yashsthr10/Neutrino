@@ -45,9 +45,7 @@ class RnaCapability(CapabilityBase):
         start_line: int | None = None,
         end_line: int | None = None,
     ) -> ToolResult:
-        result = self.require_rna().get_file(
-            path, start_line=start_line, end_line=end_line
-        )
+        result = self.require_rna().get_file(path, start_line=start_line, end_line=end_line)
         return self.serializer.serialize(result)
 
     def search(

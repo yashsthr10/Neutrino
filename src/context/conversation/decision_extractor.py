@@ -9,15 +9,22 @@ from typing import Protocol
 
 from src.context.runtime.conversation_context import Decision, DecisionCategory, Message
 
+
 # Temporary local seam — replace with system-wide chat-model port when it exists.
 class ChatModelPort(Protocol):
     def complete(self, messages: list[dict[str, str]]) -> str: ...
 
 
 _TRIGGERS: list[tuple[DecisionCategory, re.Pattern[str]]] = [
-    ("architecture", re.compile(r"\b(?:we'll use|we will use|decided to use|going with)\b(.+)", re.I)),
+    (
+        "architecture",
+        re.compile(r"\b(?:we'll use|we will use|decided to use|going with)\b(.+)", re.I),
+    ),
     ("architecture", re.compile(r"\b(?:architecture decision|we'll adopt)\b[:\s]*(.+)", re.I)),
-    ("coding_preference", re.compile(r"\b(?:the convention here is|prefer|instead of .+?, use)\b(.+)", re.I)),
+    (
+        "coding_preference",
+        re.compile(r"\b(?:the convention here is|prefer|instead of .+?, use)\b(.+)", re.I),
+    ),
     ("coding_preference", re.compile(r"\b(?:coding preference|style guide)\b[:\s]*(.+)", re.I)),
     ("plan", re.compile(r"\b(?:plan(?:ned)?(?: to)?|next steps?(?: are)?)\b[:\s]*(.+)", re.I)),
     ("constraint", re.compile(r"\b(?:must not|constraint|we cannot|hard limit)\b[:\s]*(.+)", re.I)),
@@ -29,7 +36,9 @@ def _now_iso() -> str:
 
 
 class DecisionExtractor:
-    def __init__(self, chat_model: ChatModelPort | None = None, *, llm_enabled: bool = False) -> None:
+    def __init__(
+        self, chat_model: ChatModelPort | None = None, *, llm_enabled: bool = False
+    ) -> None:
         self.chat_model = chat_model
         self.llm_enabled = llm_enabled
         self.last_degraded: bool = False
@@ -87,7 +96,10 @@ class DecisionExtractor:
             f"assistant message as one decision per line starting with CATEGORY: ...\n\n{message.content}"
         )
         text = self.chat_model.complete(
-            [{"role": "system", "content": "You extract decisions."}, {"role": "user", "content": prompt}]
+            [
+                {"role": "system", "content": "You extract decisions."},
+                {"role": "user", "content": prompt},
+            ]
         )
         out: list[Decision] = []
         for line in text.splitlines():

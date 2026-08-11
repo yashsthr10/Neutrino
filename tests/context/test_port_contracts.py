@@ -18,9 +18,7 @@ from src.context.runtime.conversation_context import Message
 def test_context_manager_port(
     impl_name: str, context_manager, fake_context_manager: FakeContextManager
 ) -> None:
-    impl: ContextManagerPort = (
-        context_manager if impl_name == "real" else fake_context_manager
-    )
+    impl: ContextManagerPort = context_manager if impl_name == "real" else fake_context_manager
     assert isinstance(impl, ContextManagerPort)
     result = impl.resolve(
         ContextRequest(

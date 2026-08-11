@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
 
 from src.inference.models.request import InferenceRequest, Message
 from src.inference.ports.inference_port import InferencePort

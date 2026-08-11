@@ -2,6 +2,8 @@
 
 Concise map of what exists. Update this file when a component lands or changes role.
 
+**Full system docs** (Architecture, HLD, LLD, Design, Patterns, Specs, Workflow): [`docs/README.md`](docs/README.md).
+
 ## Idea
 
 Deterministic runtime owns **safety and completion** (approvals, budgets, verify-after-write).  
@@ -72,7 +74,8 @@ Set `NEUTRINO_ORCHESTRATOR=dummy` to force the scripted stand-in (tests / UI-onl
 | Apply + checks still needed | `CONTINUE` + reminder nudge |
 | Max repair cycles exceeded | `BLOCKED` (`tests_not_green`) |
 
-Details: [`src/orchestrator/README.md`](src/orchestrator/README.md), [`src/agent/README.md`](src/agent/README.md).
+Details: [`src/orchestrator/README.md`](src/orchestrator/README.md), [`src/agent/README.md`](src/agent/README.md).  
+System workflow / CompletionPolicy narrative: [`docs/07_workflow.md`](docs/07_workflow.md), [`docs/06_specs.md`](docs/06_specs.md).
 
 ## Agent CLI
 
@@ -129,12 +132,19 @@ No sidebar / multi-panel dashboard. Diffs and phase lines render inline in the s
 ```bash
 pip install -e ".[dev]"
 cd tui && npm install && npm run build
+# or: make build
+
+make format                       # ruff format + safe autofix (src + tests)
+make check                        # format check, lint, pytest+coverage (≥65%), TUI checks
+make test                         # pytest only
+# override coverage floor: make check COVERAGE_MIN=70
+make build                        # pip install -e ".[dev]" + TUI build
+
 neutrino                          # or: cd tui && npm start
 python -m src.rpc                 # protocol debug (stdin NDJSON)
 python -m src.agent "your task"   # headless agent loop
 rna --help                        # RNA CLI
 neutrino-auth list                # Credential Manager CLI
-pytest tests/agent tests/orchestrator tests/tool_engine tests/execution tests/rpc
 ```
 
 ## Inference + Credentials

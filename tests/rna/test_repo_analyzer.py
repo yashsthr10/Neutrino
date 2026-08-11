@@ -21,13 +21,7 @@ def test_list_files_ignores_cache(rna_python: Rna) -> None:
 def test_get_file_denies_agent_caches(python_repo) -> None:
     from src.rna.config import RnaConfig
 
-    cache_blob = (
-        python_repo
-        / ".context_cache"
-        / "packages"
-        / "blobs"
-        / "deadbeef.json"
-    )
+    cache_blob = python_repo / ".context_cache" / "packages" / "blobs" / "deadbeef.json"
     cache_blob.parent.mkdir(parents=True, exist_ok=True)
     cache_blob.write_text('{"secret": true}', encoding="utf-8")
     rna_blob = python_repo / ".rna_cache" / "blob.json"
@@ -45,9 +39,7 @@ def test_get_file_denies_agent_caches(python_repo) -> None:
     assert not any(f.startswith(".rna_cache/") for f in files)
 
     with pytest.raises(RnaSecurityError, match="excluded"):
-        rna.get_file(
-            ".context_cache/packages/blobs/deadbeef.json"
-        )
+        rna.get_file(".context_cache/packages/blobs/deadbeef.json")
     with pytest.raises(RnaSecurityError, match="excluded"):
         rna.get_file(".rna_cache/blob.json")
 
@@ -64,7 +56,11 @@ def test_get_file_truncation(python_repo, tmp_path) -> None:
 
     big = python_repo / "big.py"
     big.write_text("\n".join(f"line_{i}" for i in range(1, 401)), encoding="utf-8")
-    rna = Rna(RnaConfig(repo_path=python_repo, cache_dir=python_repo / ".rna_cache", max_lines_per_file=200))
+    rna = Rna(
+        RnaConfig(
+            repo_path=python_repo, cache_dir=python_repo / ".rna_cache", max_lines_per_file=200
+        )
+    )
     result = rna.get_file("big.py")
     assert result.data is not None
     assert result.data.truncated is True

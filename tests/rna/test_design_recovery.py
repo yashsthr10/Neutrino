@@ -53,7 +53,9 @@ def test_get_tests_naming_and_import(rna_python: Rna) -> None:
     assert "direct_import" in relations or "naming_convention" in relations
 
 
-@pytest.mark.skipif(shutil.which("pyan3") is None and shutil.which("pyan") is None, reason="pyan3 not installed")
+@pytest.mark.skipif(
+    shutil.which("pyan3") is None and shutil.which("pyan") is None, reason="pyan3 not installed"
+)
 def test_tier3_python_lld(python_repo) -> None:
     cfg = RnaConfig(
         repo_path=python_repo,

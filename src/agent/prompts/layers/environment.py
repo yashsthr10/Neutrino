@@ -34,9 +34,7 @@ def render_environment(env: dict[str, Any] | None) -> str:
     if lang:
         lines.append(f"Language: {lang}")
     if env.get("has_tests") is not None or env.get("has_lint") is not None:
-        lines.append(
-            f"Harness: has_tests={env.get('has_tests')}, has_lint={env.get('has_lint')}"
-        )
+        lines.append(f"Harness: has_tests={env.get('has_tests')}, has_lint={env.get('has_lint')}")
     te = env.get("test_evidence") or ()
     if te:
         lines.append("Test evidence: " + ", ".join(str(x) for x in list(te)[:8]))

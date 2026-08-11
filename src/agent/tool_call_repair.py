@@ -107,16 +107,14 @@ def repair_guidance(*, salvaged: bool, failed_generation: str | None) -> str:
         return (
             "Your previous tool call used invalid markup and was repaired by the runtime. "
             "Continue using the provider's native function-calling API only "
-            "(never emit `<tool_call>` / `<function=` XML)."
-            + size_hint
+            "(never emit `<tool_call>` / `<function=` XML)." + size_hint
         )
     return (
         "Your previous response was rejected by the provider (`tool_use_failed`). "
         "Do NOT emit XML like `<tool_call>` or `<function=...>`. "
         "Call tools only via the native tool/function-calling interface supplied "
         "in this request. Keep `executor.apply` patches modest in size; for a large "
-        "landing page, create a small scaffold first, then update in follow-up applies."
-        + size_hint
+        "landing page, create a small scaffold first, then update in follow-up applies." + size_hint
     )
 
 

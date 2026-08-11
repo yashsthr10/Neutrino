@@ -47,7 +47,11 @@ class TestLinker:
         graph = self.import_graph.get_import_graph()
         module_keys = self._module_keys(target_file)
         for edge in graph.edges:
-            if edge.to in module_keys or edge.to == target_file or target_file.endswith(edge.to.replace(".", "/") + ".py"):
+            if (
+                edge.to in module_keys
+                or edge.to == target_file
+                or target_file.endswith(edge.to.replace(".", "/") + ".py")
+            ):
                 if self._looks_like_test(edge.from_file):
                     links[edge.from_file] = TestLink(
                         test_symbol=None,

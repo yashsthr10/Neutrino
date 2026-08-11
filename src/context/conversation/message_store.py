@@ -87,9 +87,7 @@ class MessageStore:
 
     def get_by_id(self, message_id: str) -> Message | None:
         with self._connect() as conn:
-            row = conn.execute(
-                "SELECT * FROM messages WHERE id=?", (message_id,)
-            ).fetchone()
+            row = conn.execute("SELECT * FROM messages WHERE id=?", (message_id,)).fetchone()
         if row is None:
             return None
         self._assert_session(row["session_id"])

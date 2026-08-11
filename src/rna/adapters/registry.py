@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import shutil
-from pathlib import Path
 
 from src.rna.adapters.base import LanguageProvider, detect_language
 from src.rna.adapters.tree_sitter_provider import TreeSitterProvider
@@ -88,7 +87,9 @@ class LanguageRegistry:
         tools = LANGUAGE_TOOLS.get(language, {}).get("lsp", [])
         for binary in tools:
             if self.which(binary):
-                provider = LspProvider(language, self.repo_root, binary, timeout_ms=self.config.lsp_timeout_ms)
+                provider = LspProvider(
+                    language, self.repo_root, binary, timeout_ms=self.config.lsp_timeout_ms
+                )
                 if provider.is_available():
                     return provider
         return None
@@ -103,7 +104,9 @@ class LanguageRegistry:
             if language in {"javascript", "typescript"}:
                 from src.rna.adapters.js_ts_tools import JsTsTier3Provider
 
-                p = JsTsTier3Provider(language, self.repo_root, timeout_ms=self.config.tier3_timeout_ms)
+                p = JsTsTier3Provider(
+                    language, self.repo_root, timeout_ms=self.config.tier3_timeout_ms
+                )
                 return p if p.is_available() else None
             if language == "go":
                 from src.rna.adapters.go_tools import GoTier3Provider
@@ -113,7 +116,9 @@ class LanguageRegistry:
             if language in {"c", "cpp"}:
                 from src.rna.adapters.cpp_tools import CppTier3Provider
 
-                p = CppTier3Provider(language, self.repo_root, timeout_ms=self.config.tier3_timeout_ms)
+                p = CppTier3Provider(
+                    language, self.repo_root, timeout_ms=self.config.tier3_timeout_ms
+                )
                 return p if p.is_available() else None
         except ImportError:
             return None

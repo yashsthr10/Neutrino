@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 from src.rna.errors import RnaSecurityError
@@ -25,9 +24,7 @@ class FileService:
         # Deny Neutrino agent caches even when the model names them explicitly.
         rel_for_ignore = Path(str(path).replace("\\", "/"))
         if self.tree.is_ignored(rel_for_ignore):
-            raise RnaSecurityError(
-                f"path is excluded from RNA access (internal cache): {path}"
-            )
+            raise RnaSecurityError(f"path is excluded from RNA access (internal cache): {path}")
         resolved = (self.root / path).resolve()
         try:
             resolved.relative_to(self.root)
@@ -39,9 +36,7 @@ class FileService:
         except ValueError as exc:
             raise RnaSecurityError(f"path escapes repo root: {path}") from exc
         if self.tree.is_ignored(rel):
-            raise RnaSecurityError(
-                f"path is excluded from RNA access (internal cache): {path}"
-            )
+            raise RnaSecurityError(f"path is excluded from RNA access (internal cache): {path}")
         # symlink escape: resolved already follows symlinks
         return resolved
 
@@ -122,9 +117,7 @@ class FileService:
                     score = 2
                 else:
                     # fuzzy: subsequence
-                    if not _fuzzy_match(pattern_l, name_l) and not _fuzzy_match(
-                        pattern_l, path_l
-                    ):
+                    if not _fuzzy_match(pattern_l, name_l) and not _fuzzy_match(pattern_l, path_l):
                         continue
                     score = 3
             depth = f.count("/")

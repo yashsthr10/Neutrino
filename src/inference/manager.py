@@ -116,7 +116,12 @@ class InferenceManager:
             except ToolUseFailed:
                 # Malformed tool markup — retrying the same prompt usually repeats the failure.
                 raise
-            except (RateLimitExceeded, ProviderUnavailable, Timeout, InferenceConnectionError) as exc:
+            except (
+                RateLimitExceeded,
+                ProviderUnavailable,
+                Timeout,
+                InferenceConnectionError,
+            ) as exc:
                 last = exc
                 if attempt >= self._max_retries:
                     break

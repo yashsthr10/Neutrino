@@ -76,9 +76,7 @@ def test_openai_compatible_allows_none() -> None:
 
 def test_bedrock_aws_profile_hint() -> None:
     mgr = CredentialManager(store=MemoryStore())
-    resolved = mgr.resolve(
-        "bedrock", config_hints={"aws_profile": "dev", "region": "us-east-1"}
-    )
+    resolved = mgr.resolve("bedrock", config_hints={"aws_profile": "dev", "region": "us-east-1"})
     assert resolved.source == "aws_profile"
     assert resolved.hints["aws_profile"] == "dev"
 

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 
 from src.rna import Rna
 from src.rna.config import RnaConfig
@@ -45,7 +44,13 @@ def test_enabled_uses_provider_and_caches(python_repo) -> None:
             )
         ]
     )
-    engine = WebSearchEngine(cfg, __import__("src.rna.cache.store", fromlist=["CacheStore"]).CacheStore(python_repo / ".rna_cache"), provider=mock)
+    engine = WebSearchEngine(
+        cfg,
+        __import__("src.rna.cache.store", fromlist=["CacheStore"]).CacheStore(
+            python_repo / ".rna_cache"
+        ),
+        provider=mock,
+    )
     r1, err1, hit1 = engine.search("q", limit=3)
     r2, err2, hit2 = engine.search("q", limit=3)
     assert err1 is None and err2 is None

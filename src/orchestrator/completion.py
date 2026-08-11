@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any
 
 from src.context.runtime.execution_context import ExecutionContext
 from src.verification.harness import VerificationPolicy, build_verification_policy

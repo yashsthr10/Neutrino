@@ -56,7 +56,9 @@ class Invalidator:
             )
             if proc.returncode != 0:
                 return []
-            return [line.strip().replace("\\", "/") for line in proc.stdout.splitlines() if line.strip()]
+            return [
+                line.strip().replace("\\", "/") for line in proc.stdout.splitlines() if line.strip()
+            ]
         except (OSError, subprocess.TimeoutExpired):
             return []
 

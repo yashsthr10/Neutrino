@@ -35,9 +35,7 @@ class CredentialManager:
             return stored
         raise CredentialNotFound(f"No credential for {profile}:{provider_id}")
 
-    def set(
-        self, provider_id: str, record: CredentialRecord, *, profile: str = "default"
-    ) -> None:
+    def set(self, provider_id: str, record: CredentialRecord, *, profile: str = "default") -> None:
         _validate_record(provider_id, record)
         self._store.set(profile, provider_id, record)
 
@@ -149,7 +147,9 @@ class CredentialManager:
 
         stored = self._store.get(profile, provider_id)
         if stored is not None:
-            source = "encrypted" if type(self._store).__name__ == "EncryptedFileStore" else "keyring"
+            source = (
+                "encrypted" if type(self._store).__name__ == "EncryptedFileStore" else "keyring"
+            )
             return ResolvedCredentials(
                 provider_id=provider_id,
                 profile=profile,

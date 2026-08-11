@@ -50,9 +50,7 @@ class CacheStore:
                 )
                 """
             )
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_cache_subject ON cache(subject_hash)"
-            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_cache_subject ON cache(subject_hash)")
             conn.commit()
 
     def _connect(self) -> sqlite3.Connection:
@@ -75,7 +73,9 @@ class CacheStore:
                 self._l1.move_to_end(k)
                 return self._l1[k]
         with self._connect() as conn:
-            row = conn.execute("SELECT inline_json, blob_ref FROM cache WHERE key=?", (k,)).fetchone()
+            row = conn.execute(
+                "SELECT inline_json, blob_ref FROM cache WHERE key=?", (k,)
+            ).fetchone()
         if row is None:
             return None
         if row["inline_json"] is not None:
@@ -129,7 +129,9 @@ class CacheStore:
             while len(self._l1) > self.l1_size:
                 self._l1.popitem(last=False)
 
-    def get_or_compute(self, key: CacheKey, compute: Callable[[], T], *, as_blob: bool = False) -> tuple[T, bool]:
+    def get_or_compute(
+        self, key: CacheKey, compute: Callable[[], T], *, as_blob: bool = False
+    ) -> tuple[T, bool]:
         """Compute-once-under-lock. Returns (value, cache_hit)."""
         if not self.enabled:
             return compute(), False

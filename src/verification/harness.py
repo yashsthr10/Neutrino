@@ -325,9 +325,7 @@ def _has_tests_tree(root: Path) -> bool:
     # Shallow fallback only — avoid full-repo rglob on large checkouts.
     try:
         for child in root.iterdir():
-            if child.is_file() and (
-                child.name.startswith("test_") and child.suffix == ".py"
-            ):
+            if child.is_file() and (child.name.startswith("test_") and child.suffix == ".py"):
                 return True
             if child.is_dir() and child.name not in {
                 ".git",

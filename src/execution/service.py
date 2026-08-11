@@ -201,9 +201,7 @@ class ExecutionService:
                     content = action.new_content or ""
                     if not content.endswith("\n"):
                         content += "\n"
-                    changes.append(
-                        FileChange(path=path, action="add", before=None, after=content)
-                    )
+                    changes.append(FileChange(path=path, action="add", before=None, after=content))
                 elif action.type == patch_format.ActionType.DELETE:
                     before = abs_path.read_text(encoding="utf-8") if abs_path.exists() else ""
                     changes.append(
@@ -218,9 +216,7 @@ class ExecutionService:
                             FileChange(path=path, action="delete", before=before, after=None)
                         )
                         changes.append(
-                            FileChange(
-                                path=target, action="add", before=None, after=after
-                            )
+                            FileChange(path=target, action="add", before=None, after=after)
                         )
                     else:
                         changes.append(
@@ -264,9 +260,7 @@ class ExecutionService:
             original = content
             path_failures: list[ApplyFailure] = []
             for before, after in pending[path]:
-                new_content = editblock.apply_search_replace(
-                    content, before, after, fname=path
-                )
+                new_content = editblock.apply_search_replace(content, before, after, fname=path)
                 if new_content is None:
                     similar = editblock.find_similar_lines(before, content)
                     path_failures.append(
@@ -377,7 +371,9 @@ class ExecutionService:
 
         reflection = None
         if failures:
-            reflection = "Unified diff hunks failed. Re-send with exact context lines from the file."
+            reflection = (
+                "Unified diff hunks failed. Re-send with exact context lines from the file."
+            )
 
         return self._finalize(
             changes, failures, format="udiff", dry_run=dry_run, reflection=reflection

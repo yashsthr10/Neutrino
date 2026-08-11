@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
+from typing import Any
 
 from src.rna.models import CallEdge, ImportEdge, LLDEdge, SymbolRef, WholeProgramGraph
 
@@ -42,7 +43,9 @@ class PythonTier3Provider:
         return [
             e
             for e in graph.call_edges
-            if e.callee_name == symbol or e.callee_name.endswith("." + short) or e.callee_name == short
+            if e.callee_name == symbol
+            or e.callee_name.endswith("." + short)
+            or e.callee_name == short
         ]
 
     def find_callees(self, symbol: str, file_hint: str | None) -> list[CallEdge]:
@@ -53,7 +56,9 @@ class PythonTier3Provider:
         return [
             e
             for e in graph.call_edges
-            if e.caller.name == symbol or e.caller.name == short or e.caller.name.endswith("." + short)
+            if e.caller.name == symbol
+            or e.caller.name == short
+            or e.caller.name.endswith("." + short)
         ]
 
     def build_whole_program_graph(self, scope: str) -> WholeProgramGraph | None:
@@ -209,7 +214,9 @@ class PythonTier3Provider:
                         continue
                     inherit.extend(self._parse_pyreverse_json(data, symbols))
                 elif path.suffix == ".dot":
-                    inherit.extend(self._parse_dot_inherits(path.read_text(encoding="utf-8", errors="replace")))
+                    inherit.extend(
+                        self._parse_dot_inherits(path.read_text(encoding="utf-8", errors="replace"))
+                    )
             if proc.returncode != 0 and not inherit and not symbols:
                 # Fallback: parse classes via AST-less empty
                 return [], []
@@ -218,7 +225,13 @@ class PythonTier3Provider:
     def _parse_pyreverse_json(self, data: Any, symbols: list[SymbolRef]) -> list[LLDEdge]:
         edges: list[LLDEdge] = []
         # Best-effort for varying pyreverse JSON shapes
-        classes = data if isinstance(data, list) else data.get("classes", []) if isinstance(data, dict) else []
+        classes = (
+            data
+            if isinstance(data, list)
+            else data.get("classes", [])
+            if isinstance(data, dict)
+            else []
+        )
         for cls in classes:
             if not isinstance(cls, dict):
                 continue

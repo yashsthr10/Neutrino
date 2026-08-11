@@ -38,9 +38,7 @@ class Validator:
         kinds = {i.kind for i in items}
         agent = request.requesting_agent
         if agent == "verifier" and "test_link" not in kinds and "file" not in kinds:
-            prov.append(
-                "verifier contract: no test_link items found for changed files"
-            )
+            prov.append("verifier contract: no test_link items found for changed files")
         if agent == "planner" and request.file_hints and "file" not in kinds:
             prov.append("planner contract: expected file items for file_hints")
         if agent == "coder" and request.file_hints and "file" not in kinds:

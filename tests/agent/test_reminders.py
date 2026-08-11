@@ -30,7 +30,9 @@ def test_verify_after_apply() -> None:
 
 def test_repeat_failure() -> None:
     facts = ReminderFacts(same_tool_streak=2)
-    observe_tool(facts, name="rna.read_file", success=False, error_text="missing", same_tool_streak=2)
+    observe_tool(
+        facts, name="rna.read_file", success=False, error_text="missing", same_tool_streak=2
+    )
     texts = build_reminders(facts)
     assert any("Do not repeat" in t for t in texts)
 

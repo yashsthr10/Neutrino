@@ -14,9 +14,11 @@ class SearchTextNotUnique(ValueError):
 
 def looks_like_udiff(text: str) -> bool:
     stripped = text.lstrip()
-    return stripped.startswith("```diff") or (
-        "\n--- " in text and "\n+++ " in text
-    ) or stripped.startswith("--- ")
+    return (
+        stripped.startswith("```diff")
+        or ("\n--- " in text and "\n+++ " in text)
+        or stripped.startswith("--- ")
+    )
 
 
 def hunk_to_before_after(hunk: list[str], lines: bool = False):
@@ -43,8 +45,7 @@ def hunk_to_before_after(hunk: list[str], lines: bool = False):
 
 def cleanup_pure_whitespace_lines(lines: list[str]) -> list[str]:
     return [
-        line if line.strip() else line[-(len(line) - len(line.rstrip("\r\n"))) :]
-        for line in lines
+        line if line.strip() else line[-(len(line) - len(line.rstrip("\r\n"))) :] for line in lines
     ]
 
 
@@ -141,7 +142,10 @@ def apply_hunk_to_content(content: str, hunk: list[str]) -> str | None:
     before_text, after_text = hunk_to_before_after(hunk)
     if not before_text.strip():
         return content + after_text
-    if content.count(before_text) > 1 and len("".join(x.strip() for x in before_text.splitlines())) < 10:
+    if (
+        content.count(before_text) > 1
+        and len("".join(x.strip() for x in before_text.splitlines())) < 10
+    ):
         raise SearchTextNotUnique(before_text)
     new_content = replace_most_similar_chunk(content, before_text, after_text)
     return new_content

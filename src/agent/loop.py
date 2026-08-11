@@ -8,7 +8,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from src.agent.classifier import ClassifiedOutcome, classify
+from src.agent.classifier import classify
 from src.agent.events import (
     AgentBlocked,
     AgentCompleted,
@@ -480,9 +480,7 @@ class AgentLoop:
             except json.JSONDecodeError:
                 args = {"_raw": tc.arguments}
 
-            self._emit(
-                ToolCallRequested(name=tc.name, arguments=args, tool_call_id=tc.id)
-            )
+            self._emit(ToolCallRequested(name=tc.name, arguments=args, tool_call_id=tc.id))
 
             if tc.name in _TOOLS_NEEDING_APPROVAL and not args.get("approved"):
                 if self.auto_approve_shell:
@@ -509,9 +507,7 @@ class AgentLoop:
             self.policy.record_tool_outcome(
                 loop_state, tool_name=tc.name, arguments=args, success=result.success
             )
-            err_text = result.meta.error or (
-                "; ".join(result.errors) if result.errors else ""
-            )
+            err_text = result.meta.error or ("; ".join(result.errors) if result.errors else "")
             if self.reminder_facts is not None:
                 observe_tool(
                     self.reminder_facts,
@@ -529,9 +525,9 @@ class AgentLoop:
                     self.agent_state,
                     tool_name=tc.name,
                     success=result.success,
-                    apply_succeeded=self.reminder_facts.apply_succeeded
-                    if self.reminder_facts
-                    else False,
+                    apply_succeeded=(
+                        self.reminder_facts.apply_succeeded if self.reminder_facts else False
+                    ),
                     checks_required=ctx.verification.checks_required,
                     tests_succeeded=bool(
                         isinstance(ctx.verification.test_results, dict)

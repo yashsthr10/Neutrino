@@ -54,7 +54,10 @@ def _annotation_to_json_schema(ann: Any) -> dict[str, Any]:
     # Optional / Union
     if origin is type(None):
         return {"type": "string", "nullable": True}
-    if str(origin) in {"typing.Union", "types.UnionType"} or getattr(origin, "__name__", "") == "UnionType":
+    if (
+        str(origin) in {"typing.Union", "types.UnionType"}
+        or getattr(origin, "__name__", "") == "UnionType"
+    ):
         non_none = [a for a in args if a is not type(None)]
         if len(non_none) == 1:
             schema = _annotation_to_json_schema(non_none[0])
@@ -67,7 +70,9 @@ def _annotation_to_json_schema(ann: Any) -> dict[str, Any]:
             schema["nullable"] = True
             return schema
     # Literal
-    if get_origin(ann) is getattr(__import__("typing"), "Literal", None) or str(get_origin(ann)).endswith("Literal"):
+    if get_origin(ann) is getattr(__import__("typing"), "Literal", None) or str(
+        get_origin(ann)
+    ).endswith("Literal"):
         return {"type": "string", "enum": list(get_args(ann))}
     return {"type": "string"}
 

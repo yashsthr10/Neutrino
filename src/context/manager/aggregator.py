@@ -22,9 +22,7 @@ def _tokens(text: str) -> int:
 
 
 class Aggregator:
-    def aggregate(
-        self, rna_results: list[tuple[str, RnaResult]]
-    ) -> list[RepositoryContextItem]:
+    def aggregate(self, rna_results: list[tuple[str, RnaResult]]) -> list[RepositoryContextItem]:
         items: list[RepositoryContextItem] = []
         for method_name, result in rna_results:
             items.extend(self._flatten(method_name, result))

@@ -82,9 +82,7 @@ def test_controller_keeps_tool_history_across_continues(tmp_path) -> None:
         _final("still remembering"),
     ]
     inference = ScriptedInference(responses)
-    engine = build_tool_engine(
-        RuntimeServices(rna=FakeRna(), repo_path=tmp_path)
-    )
+    engine = build_tool_engine(RuntimeServices(rna=FakeRna(), repo_path=tmp_path))
     controller = AgentController(
         inference=inference,
         tool_engine=engine,

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterator
-from typing import Any
 
 import httpx
 
@@ -83,9 +82,7 @@ class OpenAICompatibleProvider:
                 raise AuthenticationError("openai-compatible auth failed on /models")
             if resp.status_code < 400:
                 data = resp.json()
-                models = tuple(
-                    str(m.get("id")) for m in (data.get("data") or []) if m.get("id")
-                )
+                models = tuple(str(m.get("id")) for m in (data.get("data") or []) if m.get("id"))
                 return HealthStatus(ok=True, message="ok", models=models)
         except httpx.HTTPError:
             pass

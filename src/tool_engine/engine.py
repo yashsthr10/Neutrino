@@ -182,9 +182,7 @@ def build_tool_engine_from_subsystem(
     execution = build_execution_service(root) if root is not None else None
     git = GitService(root) if root is not None else None
     verification = (
-        build_verification_service(
-            root, test_command=test_command, lint_command=lint_command
-        )
+        build_verification_service(root, test_command=test_command, lint_command=lint_command)
         if root is not None
         else None
     )
