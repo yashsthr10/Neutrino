@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Box, Text } from "ink";
 import TextInput from "ink-text-input";
 
@@ -25,14 +25,19 @@ function parseIndex(raw: string, length: number): number | null {
   return n - 1;
 }
 
+function allowsCustomModelName(providerId: string): boolean {
+  return providerId === "ollama" || providerId === "openai-compatible";
+}
+
 export function ModelModal() {
-  const { inferenceCatalog, inferenceListModels, setModel, dispatch } = useRuntime();
+  const { inferenceCatalog, inferenceListModels, setModel, dispatch, state } = useRuntime();
   const [catalog, setCatalog] = useState<InferenceCatalogResult | null>(null);
   const [step, setStep] = useState<Step>({ name: "providers" });
   const [value, setValue] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const autoSelectedRef = useRef<string | null>(null);
 
   const reload = useCallback(async () => {
     setBusy(true);
@@ -51,29 +56,52 @@ export function ModelModal() {
     void reload();
   }, [reload]);
 
+  useEffect(() => {
+    return () => {
+      autoSelectedRef.current = null;
+    };
+  }, []);
+
   const providers: InferenceCatalogProvider[] = catalog?.providers ?? [];
 
-  const selectProvider = async (match: InferenceCatalogProvider) => {
-    setBusy(true);
-    try {
-      const listed = await inferenceListModels(match.providerId);
-      setStep({
-        name: "models",
-        providerId: match.providerId,
-        models: listed.models,
-      });
-      setValue("");
-      if (listed.warning && listed.source === "catalog") {
-        setStatus(`catalog fallback (${listed.models.length} models)`);
-      } else {
-        setStatus(`${listed.source}: ${listed.models.length} models`);
+  const selectProvider = useCallback(
+    async (match: InferenceCatalogProvider) => {
+      setBusy(true);
+      setError(null);
+      try {
+        const listed = await inferenceListModels(match.providerId);
+        setStep({
+          name: "models",
+          providerId: match.providerId,
+          models: listed.models,
+        });
+        setValue("");
+        if (listed.warning && listed.source === "catalog") {
+          setStatus(`catalog fallback (${listed.models.length} models)`);
+        } else {
+          setStatus(`${listed.source}: ${listed.models.length} models`);
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setBusy(false);
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
+    },
+    [inferenceListModels],
+  );
+
+  useEffect(() => {
+    const pending = state.modelPickerProviderId;
+    if (!catalog || busy || !pending || autoSelectedRef.current === pending) return;
+    autoSelectedRef.current = pending;
+    dispatch({ type: "set_overlay", overlay: "model", modelPickerProviderId: null });
+    const match = providers.find((p) => p.providerId === pending);
+    if (!match) {
+      setError(`provider ${pending} not available — use /auth first`);
+      return;
     }
-  };
+    void selectProvider(match);
+  }, [catalog, state.modelPickerProviderId, busy, providers, dispatch, selectProvider]);
 
   const onSubmit = async (raw: string) => {
     const line = raw.trim();
@@ -110,7 +138,12 @@ export function ModelModal() {
     }
 
     const idx = parseIndex(line, step.models.length);
-    if (idx === null) {
+    let modelId: string;
+    if (idx !== null) {
+      modelId = step.models[idx]!.id;
+    } else if (allowsCustomModelName(step.providerId)) {
+      modelId = line;
+    } else {
       setError(
         step.models.length === 0
           ? "no models listed — b back"
@@ -118,7 +151,6 @@ export function ModelModal() {
       );
       return;
     }
-    const modelId = step.models[idx]!.id;
     setBusy(true);
     try {
       await setModel(step.providerId, modelId);
@@ -198,7 +230,9 @@ export function ModelModal() {
       <Text color={colors.muted}>
         {step.name === "providers"
           ? "enter index · esc close"
-          : "enter index · b back · esc close"}
+          : allowsCustomModelName(step.providerId)
+            ? "enter index or model name · b back · esc close"
+            : "enter index · b back · esc close"}
       </Text>
     </Box>
   );

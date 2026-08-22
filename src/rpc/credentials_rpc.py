@@ -34,13 +34,15 @@ def credentials_set(mgr: CredentialManager, params: dict[str, Any]) -> dict[str,
             f"Unknown providerId {provider_id!r}; expected one of {', '.join(KNOWN_PROVIDERS)}"
         )
     profile = str(params.get("profile") or "default")
-    kind = str(params.get("kind") or KIND_FOR_PROVIDER.get(provider_id, "api_key"))
     fields_raw = params.get("fields") or {}
     if not isinstance(fields_raw, dict):
         raise ValueError("fields must be an object")
     fields = {str(k): str(v) for k, v in fields_raw.items() if v is not None and str(v) != ""}
-    if not fields:
+    if not fields and provider_id != "ollama":
         raise ValueError("fields must include at least one secret value")
+    kind = str(params.get("kind") or KIND_FOR_PROVIDER.get(provider_id, "api_key"))
+    if provider_id == "ollama":
+        kind = "none"
     record = CredentialRecord(kind=kind, fields=fields)  # type: ignore[arg-type]
     try:
         mgr.set(provider_id, record, profile=profile)

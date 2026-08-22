@@ -46,19 +46,60 @@ CATALOG_MODELS: dict[str, tuple[str, ...]] = {
         "anthropic/claude-sonnet-4",
         "google/gemini-2.5-flash",
     ),
+    "ollama": ("llama3.2", "qwen2.5-coder", "codellama", "mistral", "gemma2"),
     "openai-compatible": ("llama3.2", "qwen2.5-coder", "codellama", "mistral"),
 }
 
 OPENROUTER_DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
+OLLAMA_DEFAULT_HOST = "http://127.0.0.1:11434"
+# Local CPU inference with a full tool catalog can exceed 60s before the first stream chunk.
+OLLAMA_DEFAULT_TIMEOUT_S = 600.0
 
 # Providers that may appear without a stored secret (local / AWS profile chain).
-ALWAYS_ELIGIBLE = frozenset({"openai-compatible"})
+ALWAYS_ELIGIBLE = frozenset({"ollama", "openai-compatible"})
 
 
 def _provider_meta(provider_id: str) -> dict[str, str]:
-    if provider_id == "openai-compatible":
+    if provider_id in {"openai-compatible", "ollama"}:
         return {"type": "openai-compatible", "vendor": ""}
     return {"type": "native", "vendor": provider_id}
+
+
+def display_provider_id(cfg: InferenceProviderConfig) -> str:
+    """Map persisted openai-compatible Ollama URLs back to the ollama provider id."""
+    if cfg.type == "openai-compatible" and cfg.base_url and _looks_like_local_openai_compatible(
+        cfg.base_url
+    ):
+        return "ollama"
+    return cfg.provider_id()
+
+
+def _normalize_openai_compatible_base(url: str) -> str:
+    base = url.strip().rstrip("/")
+    if not base.endswith("/v1"):
+        base = f"{base}/v1"
+    return base
+
+
+def _ollama_base_url(
+    credentials: CredentialManager,
+    *,
+    profile: str = "default",
+    explicit: str | None = None,
+    active: InferenceProviderConfig | None = None,
+) -> str:
+    if explicit:
+        return _normalize_openai_compatible_base(explicit)
+    try:
+        resolved = credentials.resolve("ollama", profile=profile)
+        stored = resolved.fields.get("base_url") or resolved.hints.get("base_url")
+        if stored:
+            return _normalize_openai_compatible_base(stored)
+    except Exception:  # noqa: BLE001
+        pass
+    if active and active.base_url and _looks_like_local_openai_compatible(active.base_url):
+        return _normalize_openai_compatible_base(active.base_url)
+    return _normalize_openai_compatible_base(OLLAMA_DEFAULT_HOST)
 
 
 def eligible_providers(
@@ -106,7 +147,7 @@ def catalog(
     return {
         "profile": profile,
         "active": {
-            "providerId": active.provider_id(),
+            "providerId": display_provider_id(active),
             "model": active.model,
             "type": active.type,
             "vendor": active.vendor,
@@ -122,9 +163,27 @@ def config_for_provider(
     model: str | None = None,
     base_url: str | None = None,
     active: InferenceProviderConfig | None = None,
+    credentials: CredentialManager | None = None,
+    profile: str = "default",
 ) -> InferenceProviderConfig:
     """Build a non-secret config for listing or selecting a provider."""
     base = active or InferenceProviderConfig()
+    if provider_id == "ollama":
+        resolved_base = _ollama_base_url(
+            credentials or CredentialManager(),
+            profile=profile,
+            explicit=base_url,
+            active=base,
+        )
+        return InferenceProviderConfig(
+            type="openai-compatible",
+            model=model or base.model or CATALOG_MODELS["ollama"][0],
+            base_url=resolved_base,
+            temperature=base.temperature,
+            max_tokens=base.max_tokens,
+            timeout_s=max(base.timeout_s, OLLAMA_DEFAULT_TIMEOUT_S),
+            credential=base.credential,
+        )
     if provider_id == "openai-compatible":
         return InferenceProviderConfig(
             type="openai-compatible",
@@ -224,7 +283,13 @@ def list_models_for_provider(
     source = "catalog"
     warning: str | None = None
 
-    cfg = config_for_provider(provider_id, base_url=base_url, active=active)
+    cfg = config_for_provider(
+        provider_id,
+        base_url=base_url,
+        active=active,
+        credentials=credentials,
+        profile=profile,
+    )
     cfg = cfg.model_copy(update={"timeout_s": min(cfg.timeout_s, 5.0)})
     try:
         from src.inference import build_inference
@@ -280,4 +345,6 @@ def apply_set_model(
         model=model,
         base_url=base_url_s,
         active=active,
+        credentials=credentials,
+        profile=profile,
     )

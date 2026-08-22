@@ -37,6 +37,8 @@ export interface SessionHelloResult {
   protocolVersion: string;
   projectName: string;
   model: string;
+  providerId?: string;
+  baseUrl?: string | null;
   branch: string;
   capabilities: string[];
 }

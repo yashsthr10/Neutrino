@@ -8,9 +8,8 @@ from src.context import (
     ContextManagerPort,
     ConversationManagerPort,
     ContextRequest,
-    FakeContextManager,
-    FakeConversationManager,
 )
+from tests.doubles.context import FakeContextManager, FakeConversationManager
 from src.context.runtime.conversation_context import Message
 
 

@@ -30,6 +30,7 @@ KIND_FOR_PROVIDER: dict[str, str] = {
     "google_genai": "api_key",
     "groq": "api_key",
     "openrouter": "api_key",
+    "ollama": "none",
     "openai-compatible": "api_key",
 }
 
@@ -74,4 +75,8 @@ def env_config_hints(provider_id: str) -> dict[str, str]:
         org = os.environ.get("OPENAI_ORG_ID")
         if org:
             hints["organization"] = org
+    if provider_id == "ollama":
+        host = os.environ.get("OLLAMA_HOST")
+        if host:
+            hints["base_url"] = host
     return hints

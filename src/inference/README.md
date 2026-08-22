@@ -1,6 +1,6 @@
 # Inference Subsystem — provider-agnostic chat for Neutrino
 
-Runtime code talks only to **Inference Manager** via **Inference Port**. Providers (OpenAI-compatible HTTP, LangChain natives, Fake) stay behind the factory. Secrets come from Credential Manager — never from TOML or Inference internals.
+Runtime code talks only to **Inference Manager** via **Inference Port**. Providers (OpenAI-compatible HTTP, LangChain natives) stay behind the factory. Secrets come from Credential Manager — never from TOML or Inference internals.
 
 ```text
 Execution Runtime
@@ -10,11 +10,12 @@ InferenceManager  →  InferencePort
        │
        ├─ ProviderFactory
        │     ├─ OpenAICompatibleProvider  (httpx)
-       │     ├─ LangChainProvider         (optional extras)
-       │     └─ FakeInferenceProvider     (tests)
+       │     └─ LangChainProvider         (optional extras)
        │
        └─ CredentialManager.get / resolve
 ```
+
+Test doubles live in `tests/doubles/inference.py` — not shipped in production.
 
 - **Library:** `from src.inference import build_inference, InferenceManager, InferencePort`
 - **Context bridge:** `InferenceChatModelAdapter` implements Context `ChatModelPort.complete`
@@ -38,7 +39,7 @@ pip install -e '.[inference-groq]'
 pip install -e '.[inference-all]'
 ```
 
-Core OpenAI-compatible + Fake need no LangChain extras.
+Core OpenAI-compatible needs no LangChain extras.
 
 ---
 
@@ -67,15 +68,16 @@ print(resp.usage.input_tokens, resp.usage.output_tokens)
 mgr.close()
 ```
 
-Tests / offline:
+Tests:
 
 ```python
-from src.inference import FakeInferenceProvider, build_inference
+from src.inference import build_inference
+from tests.doubles import FakeInferenceProvider
 
 mgr = build_inference(
     InferenceProviderConfig(),
     CredentialManager(store=MemoryStore()),
-    fake=FakeInferenceProvider(response_text="pong"),
+    provider=FakeInferenceProvider(response_text="pong"),
 )
 ```
 
@@ -127,7 +129,8 @@ chat_model = InferenceChatModelAdapter(mgr)
 | `vendor=google_genai` | ChatGoogleGenerativeAI | `GOOGLE_API_KEY` / `GEMINI_API_KEY` |
 | `vendor=groq` | ChatGroq | `GROQ_API_KEY` |
 | `vendor=openrouter` | ChatOpenAI + OpenRouter base URL | `OPENROUTER_API_KEY` |
-| Fake | in-process scripted | none |
+
+Test doubles: `tests/doubles/inference.py` (`FakeInferenceProvider`, etc.) — not a production provider.
 
 ### Azure
 

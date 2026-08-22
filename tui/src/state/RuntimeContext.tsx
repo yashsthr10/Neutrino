@@ -89,6 +89,8 @@ export function RuntimeProvider({
           type: "connected",
           projectName: hello.projectName,
           model: hello.model,
+          providerId: hello.providerId,
+          baseUrl: hello.baseUrl ?? null,
           branch: hello.branch,
         });
         await client.requestRepoTree();
@@ -206,7 +208,12 @@ export function RuntimeProvider({
       opts?: { baseUrl?: string; profile?: string },
     ) => {
       await clientRef.current?.setModel(providerId, model, opts);
-      dispatch({ type: "set_model", model });
+      dispatch({
+        type: "set_model",
+        model,
+        providerId,
+        baseUrl: opts?.baseUrl ?? null,
+      });
     },
     [],
   );

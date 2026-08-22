@@ -84,7 +84,7 @@ def rna_tool_specs() -> list[ToolSpec]:
             handler_key="rna.read_file",
             states=_STATES,
             when_to_use="You know the path and need contents before editing or answering.",
-            when_not_to_use="Browsing for unknown locations — search/list first.",
+            when_not_to_use="Never pass absolute paths — use repo-relative paths only; when browsing for unknown locations use search/list first.",
             pairs_with=("executor.apply", "rna.search"),
             parameters=(
                 ToolParam("path", "string", True, "Repository-relative file path"),

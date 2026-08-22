@@ -34,6 +34,11 @@ from src.inference.models.usage import Usage
 from src.config.schema import InferenceProviderConfig
 
 
+def _is_local_base_url(url: str) -> bool:
+    lower = url.strip().lower()
+    return any(token in lower for token in ("127.0.0.1", "localhost", "0.0.0.0", ":11434"))
+
+
 class OpenAICompatibleProvider:
     name = "openai-compatible"
 
@@ -59,10 +64,13 @@ class OpenAICompatibleProvider:
             )
             if api_key:
                 headers["Authorization"] = f"Bearer {api_key}"
+            read_timeout = self._config.timeout_s
+            if _is_local_base_url(self._base_url):
+                read_timeout = max(read_timeout, 600.0)
             self._client = httpx.Client(
                 base_url=self._base_url,
                 headers=headers,
-                timeout=self._config.timeout_s,
+                timeout=httpx.Timeout(connect=10.0, read=read_timeout, write=30.0, pool=10.0),
             )
 
     def close(self) -> None:
@@ -149,6 +157,7 @@ class OpenAICompatibleProvider:
             default_max_tokens=self._config.max_tokens,
         )
         body["stream"] = True
+        body["stream_options"] = {"include_usage": True}
         try:
             with self._client.stream("POST", "/chat/completions", json=body) as resp:
                 if resp.status_code in {401, 403}:
@@ -173,6 +182,13 @@ class OpenAICompatibleProvider:
                         continue
                     choice = (data.get("choices") or [{}])[0]
                     delta = choice.get("delta") or {}
+                    reasoning = delta.get("reasoning_content") or delta.get("reasoning") or delta.get(
+                        "thinking"
+                    )
+                    if reasoning:
+                        yield InferenceStreamEvent(
+                            type="delta_reasoning", text=str(reasoning)
+                        )
                     if delta.get("content"):
                         yield InferenceStreamEvent(type="delta_text", text=str(delta["content"]))
                     for tc in delta.get("tool_calls") or []:
@@ -184,6 +200,7 @@ class OpenAICompatibleProvider:
                                 name=str(fn.get("name") or ""),
                                 arguments=str(fn.get("arguments") or ""),
                             ),
+                            tool_index=int(tc["index"]) if tc.get("index") is not None else None,
                         )
                     usage_raw = data.get("usage")
                     if usage_raw:

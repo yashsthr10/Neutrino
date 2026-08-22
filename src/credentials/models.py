@@ -15,6 +15,7 @@ KNOWN_PROVIDERS = (
     "google_genai",
     "groq",
     "openrouter",
+    "ollama",
     "openai-compatible",
 )
 

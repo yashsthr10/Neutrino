@@ -6,12 +6,12 @@ from pathlib import Path
 
 import pytest
 
-from src.context.fake import FakeContextManager, FakeConversationManager
+from tests.doubles.context import FakeContextManager, FakeConversationManager
 from src.context.models import ContextPackage, ContextRequest
 from src.context.runtime.conversation_context import ConversationContext
 from src.context.runtime.repository_context import RepositoryContext, RepositoryContextItem
 from src.execution import ExecutionService
-from src.rna.fake import FakeRna
+from tests.doubles.rna import FakeRna
 from src.rna.models import SearchHit, SymbolRef
 from src.tool_engine import RuntimeServices, build_tool_engine
 from src.verification import VerificationService

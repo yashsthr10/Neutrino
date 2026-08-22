@@ -66,7 +66,8 @@ context/
                                   # (RepositoryContext / ConversationContext are defined once, in
                                   #  runtime/, and re-exported here — see §3.1)
   observability.py                 # timed_call(), structured log record (mirrors rna/observability.py)
-  fake.py                            # FakeContextManager, FakeConversationManager
+
+  # test doubles: tests/doubles/context.py (FakeContextManager, FakeConversationManager)
 
   manager/
     __init__.py

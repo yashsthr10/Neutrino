@@ -21,7 +21,7 @@ def main(argv: list[str] | None = None) -> None:
     )
     parser.add_argument(
         "--model",
-        default="dummy",
+        default="default",
         help="Model label reported in session.hello.",
     )
     parser.add_argument(

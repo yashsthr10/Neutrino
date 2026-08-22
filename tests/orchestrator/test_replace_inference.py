@@ -5,14 +5,14 @@ from __future__ import annotations
 from pathlib import Path
 
 from src.agent.policy import AgentPolicy
-from src.context.fake import FakeContextManager, FakeConversationManager
+from tests.doubles.context import FakeContextManager, FakeConversationManager
 from src.execution import ExecutionService
 from src.inference.models.request import InferenceRequest
 from src.inference.models.response import HealthStatus, InferenceResponse, ModelInfo
 from src.inference.models.usage import Usage
 from src.inference.models.capabilities import ProviderCapabilities
 from src.orchestrator import AgentOrchestrator
-from src.rna.fake import FakeRna
+from tests.doubles.rna import FakeRna
 from src.tool_engine import RuntimeServices, build_tool_engine
 from src.verification import VerificationService
 from collections.abc import Iterator
@@ -52,8 +52,9 @@ class _NamedFake:
         )
 
     def stream(self, request: InferenceRequest) -> Iterator[InferenceStreamEvent]:
-        _ = self.chat(request)
-        yield InferenceStreamEvent(type="done", finish_reason="stop")
+        from src.inference.stream_accumulator import stream_events_from_response
+
+        yield from stream_events_from_response(self.chat(request))
 
 
 def test_replace_inference_swaps_backend(tmp_path: Path) -> None:

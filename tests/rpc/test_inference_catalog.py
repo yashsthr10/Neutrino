@@ -74,7 +74,8 @@ def test_catalog_only_openai_compatible_without_creds(server) -> None:  # type: 
     )
     assert resp is not None
     providers = {p["providerId"] for p in resp["result"]["providers"]}
-    assert providers == {"openai-compatible"}
+    assert providers == {"openai-compatible", "ollama"}
+    assert resp["result"]["active"]["providerId"] == "ollama"
     assert resp["result"]["active"]["model"] == "llama3.2"
 
 
@@ -198,6 +199,29 @@ def test_set_model_openrouter_does_not_inherit_ollama_base_url(server) -> None: 
     assert ok["result"]["ok"] is True
     assert ok["result"]["providerId"] == "openrouter"
     assert ok["result"]["baseUrl"] == OPENROUTER_DEFAULT_BASE_URL
+
+
+def test_set_model_ollama(server, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]
+    srv, mgr, _out = server
+    mgr.set(
+        "ollama",
+        CredentialRecord(kind="none", fields={"base_url": "http://127.0.0.1:11434"}),
+    )
+    resp = srv.handle(
+        {
+            "jsonrpc": "2.0",
+            "id": 10,
+            "method": "runtime.setModel",
+            "params": {"providerId": "ollama", "model": "llama3.2"},
+        }
+    )
+    assert resp is not None
+    assert resp["result"]["ok"] is True
+    assert resp["result"]["providerId"] == "ollama"
+    assert resp["result"]["baseUrl"] == "http://127.0.0.1:11434/v1"
+    persisted = tmp_path / "xdg" / "neutrino" / "config.toml"
+    assert persisted.is_file()
+    assert 'model = "llama3.2"' in persisted.read_text(encoding="utf-8")
 
 
 def test_list_models_returns_catalog_for_eligible(server) -> None:  # type: ignore[no-untyped-def]

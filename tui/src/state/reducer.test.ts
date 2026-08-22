@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  formatModelLabel,
   formatTokens,
   initialState,
   runtimeReducer,
@@ -20,15 +21,17 @@ describe("runtimeReducer", () => {
     expect(s.pipeline).toHaveLength(5);
   });
 
-  it("handles connected", () => {
+  it("handles connected with provider", () => {
     const s = runtimeReducer(initialState(), {
       type: "connected",
       projectName: "Demo",
-      model: "dummy",
+      model: "llama3.2",
+      providerId: "ollama",
       branch: "main",
     });
     expect(s.connected).toBe(true);
-    expect(s.projectName).toBe("Demo");
+    expect(s.providerId).toBe("ollama");
+    expect(formatModelLabel(s)).toBe("ollama/llama3.2 · local");
   });
 
   it("opens credentials overlay", () => {
@@ -39,6 +42,26 @@ describe("runtimeReducer", () => {
     expect(s.overlay).toBe("credentials");
   });
 
+  it("opens model picker with pending provider", () => {
+    const s = runtimeReducer(initialState(), {
+      type: "set_overlay",
+      overlay: "model",
+      modelPickerProviderId: "ollama",
+    });
+    expect(s.overlay).toBe("model");
+    expect(s.modelPickerProviderId).toBe("ollama");
+  });
+
+  it("clears pending provider when overlay closes", () => {
+    let s = runtimeReducer(initialState(), {
+      type: "set_overlay",
+      overlay: "model",
+      modelPickerProviderId: "ollama",
+    });
+    s = runtimeReducer(s, { type: "set_overlay", overlay: "none" });
+    expect(s.modelPickerProviderId).toBeNull();
+  });
+
   it("applies model.changed", () => {
     let s = initialState();
     s = apply(s, {
@@ -46,9 +69,26 @@ describe("runtimeReducer", () => {
       payload: { model: "gpt-4o", providerId: "openai" },
     });
     expect(s.model).toBe("gpt-4o");
+    expect(s.providerId).toBe("openai");
+    expect(formatModelLabel(s)).toBe("openai/gpt-4o");
     expect(s.transcript.some((t) => t.kind === "line" && t.text.includes("gpt-4o"))).toBe(
       true,
     );
+  });
+
+  it("appends activity.delta tokens on the same line", () => {
+    let s = initialState();
+    s = apply(s, {
+      type: "activity.delta",
+      payload: { phaseId: "REASONING", text: "thinking: ", newline: false },
+    });
+    s = apply(s, {
+      type: "activity.delta",
+      payload: { phaseId: "REASONING", text: "step one", newline: false },
+    });
+    const lines = s.transcript.filter((t) => t.kind === "line");
+    expect(lines).toHaveLength(1);
+    expect(lines[0]?.kind === "line" && lines[0].text).toBe("thinking: step one");
   });
 
   it("streams execution into a chat-like transcript", () => {

@@ -25,7 +25,6 @@ from src.inference.models.response import (
     ModelInfo,
 )
 from src.inference.observability import timed_call
-from src.inference.providers.fake import FakeInferenceProvider
 
 
 class InferenceManager:
@@ -134,7 +133,7 @@ def build_inference(
     settings: NeutrinoSettings | InferenceProviderConfig,
     credentials: CredentialManager | None = None,
     *,
-    fake: FakeInferenceProvider | None = None,
+    provider: Any | None = None,
     langchain_chat_model: Any | None = None,
     start: bool = False,
 ) -> InferenceManager:
@@ -143,7 +142,7 @@ def build_inference(
     else:
         config = settings
     creds = credentials or build_credential_manager()
-    if fake is not None or langchain_chat_model is not None:
+    if provider is not None or langchain_chat_model is not None:
         from src.credentials.models import ResolvedCredentials
 
         resolved = ResolvedCredentials(
@@ -154,13 +153,12 @@ def build_inference(
             source="none",
             hints=config.config_hints(),
         )
-        provider = create_provider(
+        injected = provider or create_provider(
             config,
             resolved,
-            fake=fake,
             langchain_chat_model=langchain_chat_model,
         )
-        mgr = InferenceManager(config, creds, provider=provider)
+        mgr = InferenceManager(config, creds, provider=injected)
     else:
         mgr = InferenceManager(config, creds)
     if start:

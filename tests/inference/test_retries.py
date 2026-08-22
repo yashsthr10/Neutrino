@@ -8,7 +8,7 @@ from src.inference import InferenceRequest, Message
 from src.inference.errors import RateLimitExceeded
 from src.inference.manager import InferenceManager
 from src.inference.models.response import InferenceResponse
-from src.inference.providers.fake import FakeInferenceProvider
+from tests.doubles import FakeInferenceProvider
 
 
 class FlakyProvider(FakeInferenceProvider):

@@ -7,7 +7,6 @@ from typing import Literal, Protocol, runtime_checkable
 from src.rna.config import RnaConfig
 from src.rna.errors import RnaConfigError, RnaError, RnaSecurityError
 from src.rna.facade import Rna
-from src.rna.fake import FakeRna
 from src.rna.models import (
     CallEdge,
     FileSlice,
@@ -73,7 +72,6 @@ class RnaPort(Protocol):
 __all__ = [
     "Rna",
     "RnaPort",
-    "FakeRna",
     "RnaConfig",
     "RnaError",
     "RnaSecurityError",

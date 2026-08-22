@@ -19,6 +19,7 @@ from src.agent.events import (
     AgentWaitingUser,
     ModelCompleted,
     ModelInvoked,
+    ModelStreamDelta,
     TimingSummary,
     ToolCallCompleted,
     ToolCallRequested,
@@ -44,6 +45,7 @@ from src.inference.adapters.tool_adapter import tool_engine_schemas_to_specs
 from src.inference.errors import ToolUseFailed
 from src.inference.models.request import InferenceRequest, Message, ToolCall
 from src.inference.ports.inference_port import InferencePort
+from src.inference.stream_accumulator import StreamChannel, accumulate_stream
 from src.tool_engine.engine import ToolEngine
 from src.tool_engine.models import ToolRequest, ToolResult
 
@@ -117,7 +119,20 @@ class AgentLoop:
 
             try:
                 t0 = time.perf_counter()
-                response = self.inference.chat(request)
+
+                def _on_stream_delta(channel: StreamChannel, text: str) -> None:
+                    self._emit(
+                        ModelStreamDelta(
+                            channel=channel,
+                            text=text,
+                            fsm_state=fsm_state,
+                        )
+                    )
+
+                response = accumulate_stream(
+                    self.inference.stream(request),
+                    on_delta=_on_stream_delta,
+                )
                 model_ms = (time.perf_counter() - t0) * 1000.0
                 self.timing.record_model(
                     model_ms,

@@ -69,9 +69,15 @@ _TOOL_RESULT_CONTRACT = """\
 ## Tool results
 
 Tool results arrive as `role=tool` messages with JSON `ToolResult` shape: \
-`success`, `data`, `meta.error`, `errors`.
-Soft failures (`validation_error`, `permission_denied`, `not_implemented`, …) \
-mean adjust arguments or strategy — do not invent a different tool name.
+`success`, `data`, `meta.error`, `errors`. They respond to **your** tool \
+calls from the immediately preceding assistant turn — not user actions.
+
+If a tool failed, **you** chose the arguments; adjust path/strategy and \
+retry. Do not tell the user they called the tool or used the wrong path.
+
+Soft failures (`validation_error`, `permission_denied`, `not_implemented`, \
+`absolute paths are not allowed`, …) mean adjust arguments or strategy — \
+do not invent a different tool name.
 On apply mismatch / failed patch, re-read the file (`rna.read_file`) and craft \
 a tighter edit. On `File already exists` from `executor.apply`, switch to \
 `*** Update File` or `search_replace`.

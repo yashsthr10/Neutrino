@@ -12,8 +12,10 @@ type Step =
   | { name: "aws_secret"; providerId: string; accessKeyId: string };
 
 const MENU_HINT = "enter index to set · rm <index> · esc close";
+const OLLAMA_DEFAULT_HOST = "http://127.0.0.1:11434";
 
 function kindFor(providerId: string): string {
+  if (providerId === "ollama") return "local";
   if (providerId === "azure_openai") return "azure";
   if (providerId === "bedrock") return "aws";
   return "api_key";
@@ -21,6 +23,7 @@ function kindFor(providerId: string): string {
 
 function secretPrompt(kind: string, step: Step): string {
   if (step.name === "aws_secret") return "AWS secret access key";
+  if (kind === "local") return "Ollama host URL";
   if (kind === "aws") return "AWS access key id";
   if (kind === "azure") return "Azure OpenAI API key";
   if (kind === "bearer") return "bearer token";
@@ -73,7 +76,8 @@ export function CredentialsModal() {
 
   const onSubmit = async (raw: string) => {
     const line = raw.trim();
-    if (!line || busy) return;
+    if (!line && !(step.name === "secret" && step.providerId === "ollama")) return;
+    if (busy) return;
     setError(null);
     setStatus(null);
 
@@ -127,6 +131,28 @@ export function CredentialsModal() {
       if (lowerIsBack(line)) {
         setStep({ name: "menu" });
         setValue("");
+        return;
+      }
+      if (step.providerId === "ollama") {
+        setBusy(true);
+        try {
+          const host = line || OLLAMA_DEFAULT_HOST;
+          await credentialsSet(
+            "ollama",
+            { base_url: host },
+            { kind: "none", profile },
+          );
+          setValue("");
+          dispatch({
+            type: "set_overlay",
+            overlay: "model",
+            modelPickerProviderId: "ollama",
+          });
+        } catch (err) {
+          setError(err instanceof Error ? err.message : String(err));
+        } finally {
+          setBusy(false);
+        }
         return;
       }
       if (step.kind === "aws") {
@@ -189,6 +215,9 @@ export function CredentialsModal() {
       ? "index"
       : secretPrompt(step.name === "secret" ? step.kind : "aws", step);
 
+  const maskInput =
+    step.name !== "menu" && step.name === "secret" && step.kind !== "local";
+
   return (
     <Box flexDirection="column">
       <Text color={colors.muted}>── credentials ────────────────────────</Text>
@@ -213,12 +242,16 @@ export function CredentialsModal() {
           value={value}
           onChange={setValue}
           onSubmit={(v) => void onSubmit(v)}
-          mask={step.name === "menu" ? undefined : "*"}
+          mask={maskInput ? "*" : undefined}
           focus
         />
       </Box>
       <Text color={colors.muted}>
-        {step.name === "menu" ? MENU_HINT : "enter save · b back · esc cancel"}
+        {step.name === "menu"
+          ? MENU_HINT
+          : step.name === "secret" && step.providerId === "ollama"
+            ? `Enter for ${OLLAMA_DEFAULT_HOST} · opens model list · b back · esc cancel`
+            : "enter save · b back · esc cancel"}
       </Text>
     </Box>
   );

@@ -28,6 +28,15 @@ class ModelCompleted:
 
 
 @dataclass(frozen=True, slots=True)
+class ModelStreamDelta:
+    """Incremental model output while streaming (reasoning or answer text)."""
+
+    channel: Literal["reasoning", "content"]
+    text: str
+    fsm_state: str
+
+
+@dataclass(frozen=True, slots=True)
 class ToolCallRequested:
     name: str
     arguments: dict[str, Any]
@@ -83,6 +92,7 @@ AgentEvent = Union[
     AgentIterationStarted,
     ModelInvoked,
     ModelCompleted,
+    ModelStreamDelta,
     ToolCallRequested,
     ToolCallCompleted,
     AgentIterationCompleted,

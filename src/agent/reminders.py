@@ -18,6 +18,7 @@ class ReminderFacts:
     same_tool_streak: int = 0
     validation_error: bool = False
     file_already_exists: bool = False
+    absolute_path_error: bool = False
     checks_required: bool | None = None
     tests_attempted: bool = False
     lint_attempted: bool = False
@@ -54,6 +55,12 @@ _CATALOG: list[tuple[str, str]] = [
         "file_exists",
         "File already exists for an Add File patch. "
         "Switch to `*** Update File` or `search_replace` — do not retry Add File.",
+    ),
+    (
+        "absolute_path",
+        "Your last tool call used an absolute path. Tools require repository-relative "
+        "paths (e.g. `info.txt`, not `/home/.../info.txt`). You made that call — "
+        "convert the path and retry.",
     ),
     (
         "prefer_answer",
@@ -96,6 +103,8 @@ def observe_tool(
         facts.last_tool_error = error_text or None
         if "validation" in err or "mismatch" in err or "does not match" in err:
             facts.validation_error = True
+        if "absolute path" in err:
+            facts.absolute_path_error = True
 
 
 def build_reminders(facts: ReminderFacts) -> tuple[str, ...]:
@@ -127,6 +136,8 @@ def build_reminders(facts: ReminderFacts) -> tuple[str, ...]:
         add("validation_error")
     if facts.file_already_exists:
         add("file_exists")
+    if facts.absolute_path_error:
+        add("absolute_path")
     if (
         facts.question_like
         and not facts.apply_attempted

@@ -138,7 +138,7 @@ rna/
     server.py                                            # MCP server exposing every rna.* method
     schema.py                                             # rna.* -> JSON tool-call schema generation
 
-  fake.py                                                 # FakeRna: scripted, no subprocess, for tests
+  # test doubles: tests/doubles/rna.py (FakeRna: scripted, no subprocess)
 
   docs/                                                    # this design set
     README.md
@@ -151,7 +151,7 @@ rna/
   tests/
 ```
 
-Small, focused modules; one clear owner per file; a `Protocol`-based port with a `fake.py` sibling for the facade — so RNA can be unit-tested and integrated into a host agent without ever spawning a subprocess.
+Small, focused modules; one clear owner per file; a `Protocol`-based port with test doubles under `tests/doubles/` — so RNA can be unit-tested and integrated into a host agent without ever spawning a subprocess.
 
 ---
 

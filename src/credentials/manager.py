@@ -69,6 +69,14 @@ class CredentialManager:
                             configured = True
                             source = "keyring"
                             kind = stored.kind
+            if not configured and provider_id == "ollama":
+                configured = True
+                source = source or "local"
+                kind = kind or "none"
+            if not configured and provider_id == "openai-compatible":
+                configured = True
+                source = source or "none"
+                kind = kind or "none"
             statuses.append(
                 ProviderAuthStatus(
                     provider_id=provider_id,
@@ -90,8 +98,8 @@ class CredentialManager:
         hints = dict(config_hints or {})
         hints.update(env_config_hints(provider_id))
 
-        # Local / aws_profile path: no secret required
-        if provider_id in {"openai-compatible"} and not read_env_record(provider_id):
+        # Local openai-compatible / Ollama: no secret required
+        if provider_id in {"openai-compatible", "ollama"} and not read_env_record(provider_id):
             try:
                 rec = self.get(provider_id, profile=profile)
             except CredentialNotFound:
@@ -100,9 +108,11 @@ class CredentialManager:
                     profile=profile,
                     kind="none",
                     fields={},
-                    source="none",
+                    source="local" if provider_id == "ollama" else "none",
                     hints=hints,
                 )
+            if rec.fields.get("base_url"):
+                hints["base_url"] = rec.fields["base_url"]
             return ResolvedCredentials(
                 provider_id=provider_id,
                 profile=profile,
@@ -169,10 +179,22 @@ class CredentialManager:
                 hints=hints,
             )
 
+        if provider_id == "ollama":
+            return ResolvedCredentials(
+                provider_id=provider_id,
+                profile=profile,
+                kind="none",
+                fields={},
+                source="local",
+                hints=hints,
+            )
+
         raise CredentialNotFound(f"No credential for {profile}:{provider_id}")
 
 
 def _validate_record(provider_id: str, record: CredentialRecord) -> None:
+    if provider_id == "ollama" and record.kind == "none":
+        return
     if record.kind == "api_key" and not record.fields.get("api_key"):
         raise CredentialValidationError(f"{provider_id}: api_key required")
     if record.kind == "bearer" and not record.fields.get("token"):

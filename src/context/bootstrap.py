@@ -57,7 +57,7 @@ def build_context_subsystem_with_inference(
     config: ContextConfig | None = None,
     repo_path: Path | None = None,
     credentials: Any | None = None,
-    fake: Any | None = None,
+    provider: Any | None = None,
 ) -> tuple[ContextManager, ConversationManager, Any]:
     """Build Context + Conversation wired to Inference via ChatModelPort adapter.
 
@@ -65,7 +65,7 @@ def build_context_subsystem_with_inference(
     """
     from src.inference import InferenceChatModelAdapter, build_inference
 
-    inference = build_inference(settings, credentials, fake=fake)
+    inference = build_inference(settings, credentials, provider=provider)
     adapter = InferenceChatModelAdapter(inference)
     context_manager, conversation = build_context_subsystem(
         rna,

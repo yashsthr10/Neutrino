@@ -74,6 +74,24 @@ def test_openai_compatible_allows_none() -> None:
     assert resolved.source == "none"
 
 
+def test_ollama_allows_none_and_local_default() -> None:
+    mgr = CredentialManager(store=MemoryStore())
+    resolved = mgr.resolve("ollama")
+    assert resolved.kind == "none"
+    assert resolved.source == "local"
+
+
+def test_ollama_stored_base_url() -> None:
+    mgr = CredentialManager(store=MemoryStore())
+    mgr.set(
+        "ollama",
+        CredentialRecord(kind="none", fields={"base_url": "http://localhost:11434"}),
+    )
+    resolved = mgr.resolve("ollama")
+    assert resolved.fields["base_url"] == "http://localhost:11434"
+    assert resolved.source == "keyring"
+
+
 def test_bedrock_aws_profile_hint() -> None:
     mgr = CredentialManager(store=MemoryStore())
     resolved = mgr.resolve("bedrock", config_hints={"aws_profile": "dev", "region": "us-east-1"})

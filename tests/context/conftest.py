@@ -10,10 +10,9 @@ from src.context import (
     ContextConfig,
     ContextManager,
     ConversationManager,
-    FakeContextManager,
-    FakeConversationManager,
 )
-from src.rna import FakeRna
+from tests.doubles.context import FakeContextManager, FakeConversationManager
+from tests.doubles import FakeRna
 from src.rna.models import (
     CallEdge,
     ImportEdge,

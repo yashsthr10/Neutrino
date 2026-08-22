@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from src.rna import FakeRna, Rna, RnaPort
+from tests.doubles import FakeRna, ScriptedInference
+from src.rna import Rna, RnaPort
 
 
 @pytest.mark.parametrize("impl_name", ["real", "fake"])

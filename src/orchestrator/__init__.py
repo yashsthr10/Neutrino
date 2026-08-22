@@ -10,7 +10,6 @@ from src.orchestrator.completion import (
     evaluate_completion,
 )
 from src.orchestrator.env_probe import EnvironmentSnapshot, probe_environment
-from src.orchestrator.fake import FakeOrchestratorPort
 from src.orchestrator.workflow import WorkflowController, WorkflowFlags
 
 __all__ = [
@@ -19,7 +18,6 @@ __all__ = [
     "CompletionDecisionKind",
     "CompletionTracker",
     "EnvironmentSnapshot",
-    "FakeOrchestratorPort",
     "WorkflowController",
     "WorkflowFlags",
     "evaluate_completion",

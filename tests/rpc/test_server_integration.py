@@ -1,4 +1,4 @@
-"""Integration tests for RpcServer + DummyOrchestrator over in-memory NDJSON."""
+"""Integration tests for RpcServer + AgentOrchestrator over in-memory NDJSON."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 
 from src.rpc.framing import NdjsonWriter, read_messages
-from src.rpc.server import build_server
+from tests.rpc.conftest import build_fast_server
 
 
 class _ThreadSafeBuffer(io.StringIO):
@@ -43,7 +43,7 @@ def _parse_all(buf: io.StringIO) -> list[dict]:
 def test_hello_and_execute_streams_events(tmp_path: Path) -> None:
     out = _ThreadSafeBuffer()
     writer = NdjsonWriter(out)
-    server = build_server(tmp_path, writer, auto_approve=True, auto_recover=True)
+    server = build_fast_server(tmp_path, writer, auto_approve=True)
 
     hello = server.handle(
         {
@@ -55,6 +55,7 @@ def test_hello_and_execute_streams_events(tmp_path: Path) -> None:
     )
     assert hello is not None
     assert hello["result"]["protocolVersion"] == "1.0.0"
+    assert hello["result"]["model"] == "test"
 
     resp = server.handle(
         {
@@ -67,7 +68,6 @@ def test_hello_and_execute_streams_events(tmp_path: Path) -> None:
     assert resp is not None
     assert resp["result"]["ok"] is True
 
-    # Wait until execution finishes (notifications written to out)
     deadline = time.time() + 8.0
     finished = False
     while time.time() < deadline:
@@ -82,6 +82,8 @@ def test_hello_and_execute_streams_events(tmp_path: Path) -> None:
 
 def test_protocol_version_mismatch(tmp_path: Path) -> None:
     out = io.StringIO()
+    from src.rpc.server import build_server
+
     server = build_server(tmp_path, NdjsonWriter(out))
     err = server.handle(
         {
@@ -98,6 +100,8 @@ def test_protocol_version_mismatch(tmp_path: Path) -> None:
 
 def test_execute_requires_hello(tmp_path: Path) -> None:
     out = io.StringIO()
+    from src.rpc.server import build_server
+
     server = build_server(tmp_path, NdjsonWriter(out))
     err = server.handle(
         {
@@ -114,6 +118,8 @@ def test_execute_requires_hello(tmp_path: Path) -> None:
 def test_logging_does_not_touch_stdout(tmp_path: Path, capsys) -> None:
     """Writer uses provided stream; sys.stdout must stay clean when using buffer."""
     out = io.StringIO()
+    from src.rpc.server import build_server
+
     server = build_server(tmp_path, NdjsonWriter(out))
     server.handle(
         {
@@ -126,8 +132,6 @@ def test_logging_does_not_touch_stdout(tmp_path: Path, capsys) -> None:
     captured = capsys.readouterr()
     assert captured.out == ""
     assert "protocolVersion" in out.getvalue() or out.getvalue() == ""
-    # hello response is returned to caller, not auto-written unless serve_stdio
-    # Explicit write path:
     from src.rpc.framing import NdjsonWriter as W
 
     w = W(out)

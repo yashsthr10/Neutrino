@@ -24,6 +24,8 @@ def test_agent_prompt_has_layers_and_tools() -> None:
     assert "`rna.read_file`" in text
     assert "*** Begin Patch" in text
     assert "never invent tool" in text.lower()
+    assert "only actor that invokes tools" in text.lower()
+    assert "never describe a tool failure as" in text.lower()
 
 
 def test_legacy_phase_aliases_same_allowlist() -> None:

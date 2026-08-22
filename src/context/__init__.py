@@ -8,7 +8,6 @@ from src.context.bootstrap import build_context_subsystem, build_context_subsyst
 from src.context.config import ContextConfig
 from src.context.conversation.conversation_manager import ConversationManager
 from src.context.errors import ContextConfigError, ContextError, ContextSecurityError
-from src.context.fake import FakeContextManager, FakeConversationManager
 from src.context.manager.context_manager import ContextManager
 from src.context.models import (
     ContextMeta,
@@ -86,8 +85,6 @@ __all__ = [
     "ConversationManager",
     "ConversationManagerPort",
     "ExecutionContext",
-    "FakeContextManager",
-    "FakeConversationManager",
     "ContextConfig",
     "ContextError",
     "ContextSecurityError",

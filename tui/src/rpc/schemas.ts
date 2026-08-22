@@ -9,6 +9,8 @@ export const sessionHelloResultSchema = z.object({
   protocolVersion: z.string(),
   projectName: z.string(),
   model: z.string(),
+  providerId: z.string().optional(),
+  baseUrl: z.string().nullable().optional(),
   branch: z.string(),
   capabilities: z.array(z.string()),
 });

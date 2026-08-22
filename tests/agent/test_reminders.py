@@ -63,3 +63,16 @@ def test_budget() -> None:
     facts = ReminderFacts(iteration=9, max_iterations=10)
     texts = build_reminders(facts)
     assert any("budget" in t.lower() for t in texts)
+
+
+def test_absolute_path_reminder() -> None:
+    facts = ReminderFacts()
+    observe_tool(
+        facts,
+        name="rna.read_file",
+        success=False,
+        error_text="absolute paths are not allowed: /tmp/x",
+    )
+    texts = build_reminders(facts)
+    assert any("repository-relative" in t for t in texts)
+    assert any("You made that call" in t for t in texts)

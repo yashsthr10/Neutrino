@@ -89,4 +89,4 @@ Every `rna.*` call — regardless of surface (in-process or MCP) — emits one s
 | Cache/invalidation | Unit tests simulate file content changes and assert exact invalidation scope (only affected keys are evicted, nothing over-invalidated) |
 | MCP server | Contract tests using a minimal MCP client against `rna serve --stdio`, asserting schema and response shape match the in-process facade byte-for-byte after JSON round-trip |
 
-`FakeRna` (scripted, deterministic, zero subprocesses) is the default dependency for any host application's own tests — exactly the same role `FakeOrchestratorPort`-style fakes play elsewhere: fast, deterministic, and safe to run in CI with no external tooling installed.
+`FakeRna` (scripted, deterministic, zero subprocesses) in `tests/doubles/rna.py` is the default dependency for unit tests — fast, deterministic, and safe to run in CI with no external tooling installed.

@@ -23,9 +23,10 @@ class InferenceResponse:
 
 @dataclass(frozen=True, slots=True)
 class InferenceStreamEvent:
-    type: Literal["delta_text", "tool_call_delta", "usage", "done", "error"]
+    type: Literal["delta_text", "delta_reasoning", "tool_call_delta", "usage", "done", "error"]
     text: str | None = None
     tool_call: ToolCall | None = None
+    tool_index: int | None = None
     usage: Usage | None = None
     finish_reason: FinishReason | None = None
     error: str | None = None

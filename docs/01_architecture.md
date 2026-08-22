@@ -6,8 +6,7 @@ Neutrino is a **deterministic runtime** around an LLM agent loop. The runtime ow
 
 ```text
 Ink TUI (tui/)  --NDJSON JSON-RPC-->  Python runtime (src/rpc)
-                                         └─ AgentOrchestrator (default)
-                                         └─ DummyOrchestrator if NEUTRINO_ORCHESTRATOR=dummy
+                                         └─ AgentOrchestrator
 OrchestratorPort + UIEvent             (src/ports)
 Agent Loop + L1–L6 prompts             (src/agent)
 Orchestrator + CompletionPolicy        (src/orchestrator)

@@ -10,7 +10,7 @@ from src.context import (
     ConversationManagerPort,
     build_context_subsystem,
 )
-from src.rna import FakeRna
+from tests.doubles import FakeRna
 
 
 def test_build_context_subsystem(tmp_path: Path, fake_rna: FakeRna) -> None:

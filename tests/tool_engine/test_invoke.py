@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from src.context.fake import FakeContextManager
+from tests.doubles.context import FakeContextManager
 from src.tool_engine import ToolEngine, ToolRequest
 
 

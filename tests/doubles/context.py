@@ -1,4 +1,4 @@
-"""FakeContextManager / FakeConversationManager — scripted, no I/O."""
+"""FakeContextManager / FakeConversationManager test doubles."""
 
 from __future__ import annotations
 

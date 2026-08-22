@@ -26,14 +26,11 @@ from src.inference.models import (
     Usage,
 )
 from src.inference.ports import InferencePort
-from src.inference.providers.fake import FakeInferenceProvider
 
 __all__ = [
     "InferenceManager",
     "build_inference",
     "InferencePort",
-    "InferenceChatModelAdapter",
-    "FakeInferenceProvider",
     "InferenceRequest",
     "InferenceResponse",
     "InferenceStreamEvent",

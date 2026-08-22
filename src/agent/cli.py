@@ -59,11 +59,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="Auto-approve executor.run shell commands",
     )
     p.add_argument(
-        "--fake",
-        action="store_true",
-        help="Use FakeInferenceProvider (no network; for smoke tests)",
-    )
-    p.add_argument(
         "--timing",
         action="store_true",
         help="Print model vs tool timing summary JSON at end of run",
@@ -80,17 +75,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     credentials = build_credential_manager()
-    if args.fake:
-        from src.inference.providers.fake import FakeInferenceProvider
-
-        inference = build_inference(
-            settings,
-            credentials,
-            fake=FakeInferenceProvider(response_text="No tools needed; task acknowledged."),
-            start=True,
-        )
-    else:
-        inference = build_inference(settings, credentials, start=True)
+    inference = build_inference(settings, credentials, start=True)
 
     session_id = uuid.uuid4().hex
     rna = Rna(RnaConfig(repo_path=repo))

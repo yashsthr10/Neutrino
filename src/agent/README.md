@@ -66,7 +66,6 @@ Reminders are **ephemeral** (not persisted into controller history).
 ```bash
 python -m src.agent --repo . "explain this repo"
 python -m src.agent --yes "run the unit tests"
-python -m src.agent --fake "ping"
 python -m src.agent --timing --yes "…"   # also prints timing JSON at end
 ```
 

@@ -1,4 +1,4 @@
-"""FakeRna: scripted, deterministic, no I/O — for tests and host development."""
+"""FakeRna test double — scripted, deterministic, no I/O."""
 
 from __future__ import annotations
 

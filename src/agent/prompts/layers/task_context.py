@@ -28,6 +28,10 @@ def render_task_context(
         lines.append(f"Task complexity: {task_complexity}")
     if repo_path:
         lines.append(f"Repository: `{repo_path}`")
+        lines.append(
+            "Paths in the user request may be absolute — convert to repo-relative "
+            "before tool calls."
+        )
     lines.append("")
     lines.append("## TASK CONTEXT")
     lines.append("")

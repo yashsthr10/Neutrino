@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import subprocess
 import sys
 import uuid
@@ -16,7 +15,6 @@ from src.credentials.manager import CredentialManager, build_credential_manager
 from src.ports.orchestrator_port import LogLine, UIEvent
 from src.rpc import CAPABILITIES, PROTOCOL_MAJOR, PROTOCOL_VERSION
 from src.rpc import credentials_rpc, inference_rpc
-from src.rpc.dummy import DummyOrchestrator
 from src.rpc.framing import NdjsonWriter, read_messages
 from src.rpc.mapper import map_ui_event
 
@@ -56,7 +54,7 @@ class RpcServer:
         writer: NdjsonWriter,
         orchestrator: _OrchLike,
         *,
-        model_name: str = "dummy",
+        model_name: str = "default",
         project_name: str | None = None,
         credentials: CredentialManager | None = None,
         inference: InferenceProviderConfig | None = None,
@@ -247,7 +245,7 @@ class RpcServer:
             return {
                 "ok": True,
                 "model": self._model_name,
-                "providerId": self._inference.provider_id(),
+                "providerId": inference_rpc.display_provider_id(self._inference),
                 "type": self._inference.type,
                 "vendor": self._inference.vendor,
                 "baseUrl": self._inference.base_url,
@@ -257,21 +255,10 @@ class RpcServer:
         raise ProtocolError(-32601, f"Method not found: {method}")
 
     def _sync_orchestrator_inference(self) -> None:
-        """Rebuild InferenceManager and attach it to AgentOrchestrator.
-
-        Without this, /model only updates the TUI label while the agent keeps
-        the provider created at RPC process start (e.g. Ollama llama3.2).
-        """
-        if os.environ.get("NEUTRINO_ORCHESTRATOR", "agent").strip().lower() == "dummy":
-            return
-
+        """Rebuild InferenceManager and attach it to AgentOrchestrator."""
         replace = getattr(self._orch, "replace_inference", None)
         if not callable(replace):
-            # DummyOrchestrator (or other stand-in) — try promoting to real agent
-            self._try_promote_agent_orchestrator()
-            replace = getattr(self._orch, "replace_inference", None)
-            if not callable(replace):
-                return
+            return
 
         from src.inference import build_inference
 
@@ -297,38 +284,6 @@ class RpcServer:
                 )
             )
 
-    def _try_promote_agent_orchestrator(self) -> None:
-        """If we fell back to Dummy at boot, rebuild AgentOrchestrator now."""
-        if type(self._orch).__name__ != "DummyOrchestrator":
-            return
-        try:
-            from src.inference import build_inference
-            from src.orchestrator import AgentOrchestrator
-            from src.rna import Rna, RnaConfig
-            from src.tool_engine import build_tool_engine_from_subsystem
-
-            mgr = build_inference(self._inference, self._credentials, start=False)
-            session_id = uuid.uuid4().hex
-            rna = Rna(RnaConfig(repo_path=self._cwd))
-            engine = build_tool_engine_from_subsystem(rna, session_id, repo_path=self._cwd)
-            self._orch = AgentOrchestrator(
-                self.emit_ui_event,
-                self._cwd,
-                inference=mgr,
-                tool_engine=engine,
-                auto_approve=True,
-                session_id=session_id,
-            )
-            logger.info("Promoted DummyOrchestrator -> AgentOrchestrator after setModel")
-            self.emit_ui_event(LogLine("Agent backend ready with selected model", "info"))
-            try:
-                mgr.start()
-            except Exception as exc:  # noqa: BLE001
-                logger.warning("Promoted agent; start deferred: %s", exc)
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Could not promote to AgentOrchestrator: %s", exc)
-            raise
-
     def _emit_model_changed(self) -> None:
         self._writer.write(
             {
@@ -338,7 +293,7 @@ class RpcServer:
                     "type": "model.changed",
                     "payload": {
                         "model": self._model_name,
-                        "providerId": self._inference.provider_id(),
+        "providerId": inference_rpc.display_provider_id(self._inference),
                         "type": self._inference.type,
                         "vendor": self._inference.vendor,
                         "baseUrl": self._inference.base_url,
@@ -379,6 +334,8 @@ class RpcServer:
             "protocolVersion": PROTOCOL_VERSION,
             "projectName": self._project_name,
             "model": self._model_name,
+            "providerId": inference_rpc.display_provider_id(self._inference),
+            "baseUrl": self._inference.base_url,
             "branch": _git_branch(self._cwd),
             "capabilities": list(CAPABILITIES),
         }
@@ -409,11 +366,12 @@ def build_server(
     repo: Path | str,
     writer: NdjsonWriter | None = None,
     *,
-    model_name: str = "dummy",
+    model_name: str = "default",
     auto_approve: bool = True,
     auto_recover: bool = True,
     credentials: CredentialManager | None = None,
     inference: InferenceProviderConfig | None = None,
+    orchestrator: _OrchLike | None = None,
 ) -> RpcServer:
     out = writer or NdjsonWriter(sys.stdout)
     repo_path = Path(repo).resolve()
@@ -429,7 +387,7 @@ def build_server(
         except Exception:  # noqa: BLE001
             inference = InferenceProviderConfig()
             settings = None
-        if model_name and model_name != "dummy":
+        if model_name and model_name != "default":
             inference = inference.model_copy(update={"model": model_name})
     else:
         try:
@@ -438,7 +396,7 @@ def build_server(
             settings = None
 
     creds = credentials or build_credential_manager()
-    orch: _OrchLike = _build_orchestrator(
+    orch: _OrchLike = orchestrator or _build_orchestrator(
         emit,
         repo_path,
         inference=inference,
@@ -469,51 +427,27 @@ def _build_orchestrator(
     auto_approve: bool,
     auto_recover: bool,
 ) -> _OrchLike:
-    mode = os.environ.get("NEUTRINO_ORCHESTRATOR", "agent").strip().lower()
-    if mode == "dummy":
-        logger.info("Using DummyOrchestrator (NEUTRINO_ORCHESTRATOR=dummy)")
-        return DummyOrchestrator(
-            emit,
-            repo_path,
-            auto_approve=auto_approve,
-            auto_recover=auto_recover,
-        )
+    from src.inference import build_inference
+    from src.orchestrator import AgentOrchestrator
+    from src.rna import Rna, RnaConfig
+    from src.tool_engine import build_tool_engine_from_subsystem
 
-    try:
-        from src.inference import build_inference
-        from src.orchestrator import AgentOrchestrator
-        from src.rna import Rna, RnaConfig
-        from src.tool_engine import build_tool_engine_from_subsystem
-
-        rules = getattr(settings, "rules", None) if settings is not None else None
-        # Never block session.hello on provider health (rate limits / retries can hang
-        # the TUI on "Connecting to runtime…"). First chat / setModel may start later.
-        mgr = build_inference(
-            settings if settings is not None else inference,
-            credentials,
-            start=False,
-        )
-        session_id = uuid.uuid4().hex
-        rna = Rna(RnaConfig(repo_path=repo_path))
-        engine = build_tool_engine_from_subsystem(rna, session_id, repo_path=repo_path)
-        logger.info("Using AgentOrchestrator")
-        return AgentOrchestrator(
-            emit,
-            repo_path,
-            inference=mgr,
-            tool_engine=engine,
-            rules=rules,
-            auto_approve=auto_approve,
-            session_id=session_id,
-        )
-    except Exception as exc:  # noqa: BLE001
-        logger.warning(
-            "AgentOrchestrator unavailable (%s); falling back to DummyOrchestrator",
-            exc,
-        )
-        return DummyOrchestrator(
-            emit,
-            repo_path,
-            auto_approve=auto_approve,
-            auto_recover=auto_recover,
-        )
+    rules = getattr(settings, "rules", None) if settings is not None else None
+    mgr = build_inference(
+        settings if settings is not None else inference,
+        credentials,
+        start=False,
+    )
+    session_id = uuid.uuid4().hex
+    rna = Rna(RnaConfig(repo_path=repo_path))
+    engine = build_tool_engine_from_subsystem(rna, session_id, repo_path=repo_path)
+    logger.info("Using AgentOrchestrator")
+    return AgentOrchestrator(
+        emit,
+        repo_path,
+        inference=mgr,
+        tool_engine=engine,
+        rules=rules,
+        auto_approve=auto_approve,
+        session_id=session_id,
+    )

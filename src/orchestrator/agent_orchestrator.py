@@ -18,6 +18,7 @@ from src.agent.events import (
     AgentWaitingUser,
     ModelCompleted,
     ModelInvoked,
+    ModelStreamDelta,
     TimingSummary,
     ToolCallCompleted,
     ToolCallRequested,
@@ -53,12 +54,23 @@ from src.ports.orchestrator_port import (
     StatusSnapshot,
     TaskItem,
     TaskListUpdated,
+    ThinkingDelta,
     ToolCallEvent,
     UIEvent,
 )
 from src.tool_engine.engine import ToolEngine
 from src.tool_engine.models import ToolResult
 from src.verification.harness import VerificationPolicy, build_verification_policy
+
+
+def _looks_like_local_inference(inference: InferencePort) -> bool:
+    config = getattr(inference, "config", None)
+    if config is None:
+        return False
+    base = (config.base_url or "").lower()
+    return config.type == "openai-compatible" and any(
+        token in base for token in ("127.0.0.1", "localhost", "0.0.0.0", ":11434")
+    )
 
 
 class AgentOrchestrator:
@@ -100,6 +112,7 @@ class AgentOrchestrator:
             "taskComplexity": "SIMPLE",
         }
         self._controller: AgentController | None = None
+        self._reasoning_stream_open = False
         self._conversation: ConversationManagerPort | None = getattr(
             tool_engine.services, "conversation", None
         )
@@ -501,8 +514,27 @@ class AgentOrchestrator:
         elif isinstance(event, AgentWaitingUser):
             self._emit(LogLine(f"Approval required: {event.summary}", level="info"))
         elif isinstance(event, ModelInvoked):
+            self._reasoning_stream_open = False
             self._emit(LogLine(f"Model invoked (tools={event.tool_count})", level="info"))
+            if _looks_like_local_inference(self._inference):
+                self._emit(
+                    LogLine(
+                        "Local model loading prompt (first response may take 30s–2min)…",
+                        level="info",
+                    )
+                )
+        elif isinstance(event, ModelStreamDelta):
+            if event.channel == "reasoning":
+                if not self._reasoning_stream_open:
+                    self._emit(ThinkingDelta("REASONING", "thinking: ", append_newline=False))
+                    self._reasoning_stream_open = True
+                self._emit(ThinkingDelta("REASONING", event.text, append_newline=False))
+            else:
+                self._emit(ThinkingDelta(event.fsm_state, event.text, append_newline=False))
         elif isinstance(event, ModelCompleted):
+            if self._reasoning_stream_open:
+                self._emit(ThinkingDelta("REASONING", "", append_newline=True))
+            self._reasoning_stream_open = False
             self._emit(
                 LogLine(
                     (

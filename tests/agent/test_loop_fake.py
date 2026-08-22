@@ -11,69 +11,21 @@ import pytest
 
 from src.agent.loop import AgentLoop
 from src.agent.policy import AgentPolicy
-from src.context.fake import FakeContextManager, FakeConversationManager
+from tests.doubles import FakeContextManager, FakeConversationManager, QueueInference, ScriptedInference
 from src.context.models import ContextPackage, ContextRequest
 from src.context.runtime.conversation_context import ConversationContext
 from src.context.runtime.execution_context import ExecutionContext
 from src.context.runtime.repository_context import RepositoryContext, RepositoryContextItem
 from src.context.runtime.request_context import RequestContext
 from src.inference.errors import ToolUseFailed
-from src.inference.models.capabilities import ProviderCapabilities
-from src.inference.models.request import InferenceRequest, Message, ToolCall
-from src.inference.models.response import (
-    HealthStatus,
-    InferenceResponse,
-    InferenceStreamEvent,
-    ModelInfo,
-)
+from src.inference.models.request import Message, ToolCall
+from src.inference.models.response import InferenceResponse
 from src.inference.models.usage import Usage
-from src.rna.fake import FakeRna
+from tests.doubles.rna import FakeRna
 from src.rna.models import SymbolRef
 from src.tool_engine import RuntimeServices, build_tool_engine
 from src.execution import ExecutionService
 from src.verification import VerificationService
-
-
-class ScriptedInference:
-    """Returns a queue of InferenceResponse objects."""
-
-    name = "scripted"
-
-    def __init__(self, responses: list[InferenceResponse]) -> None:
-        self._responses = list(responses)
-        self.chat_calls: list[InferenceRequest] = []
-        self.connected = False
-
-    def connect(self) -> None:
-        self.connected = True
-
-    def close(self) -> None:
-        self.connected = False
-
-    def capabilities(self) -> ProviderCapabilities:
-        return ProviderCapabilities(tools=True, structured_output=True, streaming=False)
-
-    def health(self) -> HealthStatus:
-        return HealthStatus(ok=True, message="ok", models=("scripted",))
-
-    def list_models(self) -> list[ModelInfo]:
-        return [ModelInfo(id="scripted")]
-
-    def chat(self, request: InferenceRequest) -> InferenceResponse:
-        self.chat_calls.append(request)
-        if not self._responses:
-            return InferenceResponse(
-                content="fallback final",
-                usage=Usage(),
-                finish_reason="stop",
-            )
-        return self._responses.pop(0)
-
-    def stream(self, request: InferenceRequest) -> Iterator[InferenceStreamEvent]:
-        resp = self.chat(request)
-        if resp.content:
-            yield InferenceStreamEvent(type="delta_text", text=resp.content)
-        yield InferenceStreamEvent(type="done", finish_reason=resp.finish_reason)
 
 
 def _tc(name: str, arguments: dict, id_: str = "1") -> ToolCall:
@@ -237,23 +189,6 @@ def test_loop_qa_path_without_apply(engine, exec_repo: Path) -> None:
     assert "sample" in (result.final_text or "").lower()
 
 
-class _QueueInference(ScriptedInference):
-    """Like ScriptedInference but the queue may contain exceptions to raise."""
-
-    def __init__(self, items: list[InferenceResponse | Exception]) -> None:
-        super().__init__([])
-        self._items: list[InferenceResponse | Exception] = list(items)
-
-    def chat(self, request: InferenceRequest) -> InferenceResponse:
-        self.chat_calls.append(request)
-        if not self._items:
-            return InferenceResponse(content="fallback", usage=Usage(), finish_reason="stop")
-        item = self._items.pop(0)
-        if isinstance(item, Exception):
-            raise item
-        return item
-
-
 def test_loop_recovers_from_tool_use_failed_by_retry(engine, exec_repo: Path) -> None:
     """Truncated Groq failure → corrective retry → successful apply."""
     patch = (
@@ -271,7 +206,7 @@ def test_loop_recovers_from_tool_use_failed_by_retry(engine, exec_repo: Path) ->
         "*** Add File: hello.html\n"
         "+<html>\n"
     )
-    inference = _QueueInference(
+    inference = QueueInference(
         [
             ToolUseFailed("Failed to call a function", failed_generation=truncated),
             _resp_tools(_tc("executor.apply", {"format": "patch", "patch": patch}, "x")),
@@ -292,7 +227,6 @@ def test_loop_recovers_from_tool_use_failed_by_retry(engine, exec_repo: Path) ->
     assert (exec_repo / "hello.html").read_text(
         encoding="utf-8"
     ) == "<html><body>hi</body></html>\n"
-    # First call failed, second applied, third finalized.
     assert len(inference.chat_calls) == 3
 
 
@@ -312,7 +246,7 @@ def test_loop_salvages_complete_xml_tool_call(engine, exec_repo: Path) -> None:
         "</function>\n"
         "</tool_call>\n"
     )
-    inference = _QueueInference(
+    inference = QueueInference(
         [
             ToolUseFailed("tool_use_failed", failed_generation=complete),
             _resp_final("done after salvage"),

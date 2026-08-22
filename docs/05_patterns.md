@@ -4,16 +4,16 @@ Recurring implementation patterns across Neutrino. Prefer extending these over i
 
 ## 1. Port + Fake
 
-Define a `Protocol` at the boundary; ship a deterministic fake for tests and offline runs.
+Define a `Protocol` at the boundary; use deterministic test doubles under `tests/doubles/` for unit tests.
 
-| Port | Fake / stand-in |
-|------|-----------------|
-| `OrchestratorPort` | `src/orchestrator/fake.py`, `src/rpc/dummy.py` |
-| `InferencePort` | Fake provider under `src/inference/` |
-| `RnaPort` | `src/rna/fake.py` |
-| Context / Conversation ports | Fakes under `src/context/` |
+| Port | Test double |
+|------|-------------|
+| `OrchestratorPort` | `AgentOrchestrator` + scripted inference in RPC tests (`tests/rpc/conftest.py`) |
+| `InferencePort` | `tests/doubles/inference.py` (`FakeInferenceProvider`, `ScriptedInference`, `QueueInference`) |
+| `RnaPort` | `tests/doubles/rna.py` (`FakeRna`) |
+| Context / Conversation ports | `tests/doubles/context.py` |
 
-**Rule:** Host tests should not require live LLMs, LSPs, or network.
+**Rule:** Host tests should not require live LLMs, LSPs, or network. Production runtime always uses real implementations.
 
 ## 2. Capability layer over services
 

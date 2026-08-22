@@ -12,7 +12,7 @@ Scope is identical to the design set: `src/context/` only. No orchestrator, no a
 
 | Dependency | Location | Used for |
 |---|---|---|
-| `RnaPort`, `Rna`, `FakeRna` | `src/rna/__init__.py`, `src/rna/facade.py`, `src/rna/fake.py` | Context Manager's only retrieval backend (`03_context_composition.md` §3) |
+| `RnaPort`, `Rna`, `FakeRna` | `src/rna/__init__.py`, `src/rna/facade.py`, `tests/doubles/rna.py` | Context Manager's only retrieval backend (`03_context_composition.md` §3) |
 | `CacheStore`, `make_cache_key`, `CacheKey` | `src/rna/cache/store.py`, `src/rna/cache/keys.py` | Package cache, composed not reimplemented (`03_context_composition.md` §8, `06_contract_and_safety.md` §2) |
 | `repo_fingerprint`, `content_hash` | `src/rna/repo_analyzer/fingerprint.py` | Cache key staleness component (`03_context_composition.md` §1) |
 | `timed_call` observability pattern | `src/rna/observability.py` | Structured log record shape (`06_contract_and_safety.md` §3) |
@@ -180,7 +180,7 @@ src/context/runtime/
 
 ### `FakeConversationManager`
 
-Built at the end of this phase (not deferred to Phase 4, since Phase 3 needs it to test the Context Manager without a real SQLite-backed Conversation Manager): a scripted, in-memory dict-backed implementation of `ConversationManagerPort`, same role `FakeRna` plays for `RnaPort` (`06_contract_and_safety.md` §4). Lives at `src/context/fake.py` alongside `FakeContextManager` (added in Phase 3) so both fakes ship from one file, mirroring `src/rna/fake.py`'s single-file convention.
+Built at the end of this phase (not deferred to Phase 4, since Phase 3 needs it to test the Context Manager without a real SQLite-backed Conversation Manager): a scripted, in-memory dict-backed implementation of `ConversationManagerPort`, same role `FakeRna` plays for `RnaPort` (`06_contract_and_safety.md` §4). Lives in `tests/doubles/context.py` alongside `FakeContextManager` (added in Phase 3).
 
 ---
 
@@ -212,7 +212,7 @@ Built at the end of this phase (not deferred to Phase 4, since Phase 3 needs it 
 - **Golden-table test** for `RequirementAnalyzer`: every row of the table in `03_context_composition.md` §2 has an exact expected `RetrievalPlan`, asserted verbatim — a change to retrieval strategy is a visible diff in this one test file, never a silent behavior change.
 - **Determinism test** for `Ranker`/`Compressor`: the same fixture input, run twice, produces byte-identical output ordering and drop decisions.
 - **Budget compliance test**: a fixture that deliberately exceeds `max_files`/`max_lines_per_file`/`max_context_tokens` individually (three separate test cases, not one combined one) and asserts the correct dimension triggered truncation, with the correct `provenance` entry.
-- **End-to-end pipeline test** using `FakeRna` (existing, `src/rna/fake.py`) + `FakeConversationManager` (Phase 2) + a real `ContextManager`: `resolve()` on a scripted fixture returns a `ContextPackage` matching an expected golden snapshot, with zero real filesystem/SQLite/subprocess activity.
+- **End-to-end pipeline test** using `FakeRna` (`tests/doubles/rna.py`) + `FakeConversationManager` (Phase 2) + a real `ContextManager`: `resolve()` on a scripted fixture returns a `ContextPackage` matching an expected golden snapshot, with zero real filesystem/SQLite/subprocess activity.
 - `invalidate()` and the package cache round-trip: `resolve()` twice with no intervening change hits the cache the second time (`meta.cache_hit=True`, and the golden test asserts the second call issued **zero** RNA/Conversation Manager calls — instrument the fakes with call counters for this specific assertion).
 
 ### Tests
@@ -228,7 +228,7 @@ Built at the end of this phase (not deferred to Phase 4, since Phase 3 needs it 
 
 ### Deliverables
 
-- `src/context/fake.py` — `FakeContextManager` (scripted `ContextPackage` responses keyed by a caller-supplied predicate or literal `ContextRequest` match, same spirit as `FakeRna`'s scripted dicts) alongside the `FakeConversationManager` already built in Phase 2.
+- `tests/doubles/context.py` — `FakeContextManager` (scripted `ContextPackage` responses keyed by a caller-supplied predicate or literal `ContextRequest` match, same spirit as `FakeRna`'s scripted dicts) alongside the `FakeConversationManager` already built in Phase 2.
 - `tests/context/conftest.py` — shared fixtures: `fake_rna`, `conversation_manager` (real, tmp-dir-backed), `fake_conversation_manager`, `context_manager` (real, wired to `fake_rna` + real `conversation_manager`), `fake_context_manager` — mirrors `tests/rna/conftest.py`'s fixture-naming convention exactly.
 - `tests/context/test_port_contracts.py` — the parametrized `["real", "fake"]` shape test for both ports, mirroring `test_facade_contract.py` line for line in structure.
 

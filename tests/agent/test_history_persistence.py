@@ -3,56 +3,16 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Iterator
 
 from src.agent.controller import AgentController
 from src.agent.policy import AgentPolicy
 from src.context.runtime.execution_context import ExecutionContext
 from src.context.runtime.request_context import RequestContext
-from src.inference.models.capabilities import ProviderCapabilities
-from src.inference.models.request import InferenceRequest, ToolCall
-from src.inference.models.response import (
-    HealthStatus,
-    InferenceResponse,
-    InferenceStreamEvent,
-    ModelInfo,
-)
+from src.inference.models.request import ToolCall
+from src.inference.models.response import InferenceResponse
 from src.inference.models.usage import Usage
 from src.tool_engine import RuntimeServices, build_tool_engine
-from src.rna.fake import FakeRna
-
-
-class ScriptedInference:
-    name = "scripted"
-
-    def __init__(self, responses: list[InferenceResponse]) -> None:
-        self._responses = list(responses)
-        self.chat_calls: list[InferenceRequest] = []
-
-    def connect(self) -> None:
-        return None
-
-    def close(self) -> None:
-        return None
-
-    def capabilities(self) -> ProviderCapabilities:
-        return ProviderCapabilities(tools=True, structured_output=True, streaming=False)
-
-    def health(self) -> HealthStatus:
-        return HealthStatus(ok=True, message="ok", models=("scripted",))
-
-    def list_models(self) -> list[ModelInfo]:
-        return [ModelInfo(id="scripted")]
-
-    def chat(self, request: InferenceRequest) -> InferenceResponse:
-        self.chat_calls.append(request)
-        if not self._responses:
-            return InferenceResponse(content="done", usage=Usage(), finish_reason="stop")
-        return self._responses.pop(0)
-
-    def stream(self, request: InferenceRequest) -> Iterator[InferenceStreamEvent]:
-        resp = self.chat(request)
-        yield InferenceStreamEvent(type="done", finish_reason=resp.finish_reason)
+from tests.doubles import FakeRna, ScriptedInference
 
 
 def _tc(name: str, arguments: dict, id_: str) -> ToolCall:

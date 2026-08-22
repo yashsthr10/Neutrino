@@ -12,7 +12,14 @@ export type TranscriptTone = "dim" | "info" | "success" | "warn" | "error" | "us
 
 export type TranscriptItem =
   | { id: number; kind: "user"; text: string }
-  | { id: number; kind: "line"; text: string; tone: TranscriptTone; prefix?: string }
+  | {
+      id: number;
+      kind: "line";
+      text: string;
+      tone: TranscriptTone;
+      prefix?: string;
+      streamKey?: string;
+    }
   | { id: number; kind: "diff"; path: string; lines: { text: string; tone: TranscriptTone }[] }
   | { id: number; kind: "blank" };
 
@@ -37,7 +44,9 @@ export interface RuntimeViewState {
   connected: boolean;
   fatalError: string | null;
   projectName: string;
+  providerId: string;
   model: string;
+  baseUrl: string | null;
   branch: string;
   tokensUsed: number;
   tokenBudget: number | null;
@@ -58,15 +67,21 @@ export interface RuntimeViewState {
   recentEventTypes: string[];
   helpText: string | null;
   overlay: "none" | "palette" | "inspector" | "credentials" | "model";
+  /** When set, ModelModal auto-opens this provider's model list (e.g. after /auth ollama). */
+  modelPickerProviderId: string | null;
 }
 
 export type RuntimeAction =
-  | { type: "connected"; projectName: string; model: string; branch: string }
+  | { type: "connected"; projectName: string; model: string; providerId?: string; baseUrl?: string | null; branch: string }
   | { type: "fatal"; message: string }
   | { type: "ui_event"; event: UiEventEnvelope }
-  | { type: "set_overlay"; overlay: RuntimeViewState["overlay"] }
+  | {
+      type: "set_overlay";
+      overlay: RuntimeViewState["overlay"];
+      modelPickerProviderId?: string | null;
+    }
   | { type: "set_help"; text: string | null }
-  | { type: "set_model"; model: string }
+  | { type: "set_model"; model: string; providerId?: string; baseUrl?: string | null }
   | { type: "clear_approval" }
   | { type: "clear_recovery" };
 
@@ -78,8 +93,13 @@ function nextId(): number {
   return seq;
 }
 
-function line(text: string, tone: TranscriptTone = "info", prefix?: string): TranscriptItem {
-  return { id: nextId(), kind: "line", text, tone, prefix };
+function line(
+  text: string,
+  tone: TranscriptTone = "info",
+  prefix?: string,
+  streamKey?: string,
+): TranscriptItem {
+  return { id: nextId(), kind: "line", text, tone, prefix, streamKey };
 }
 
 function push(transcript: TranscriptItem[], ...items: TranscriptItem[]): TranscriptItem[] {
@@ -91,7 +111,9 @@ export function initialState(): RuntimeViewState {
     connected: false,
     fatalError: null,
     projectName: "Neutrino",
+    providerId: "—",
     model: "—",
+    baseUrl: null,
     branch: "—",
     tokensUsed: 0,
     tokenBudget: null,
@@ -112,6 +134,7 @@ export function initialState(): RuntimeViewState {
     recentEventTypes: [],
     helpText: null,
     overlay: "none",
+    modelPickerProviderId: null,
   };
 }
 
@@ -170,17 +193,31 @@ export function runtimeReducer(state: RuntimeViewState, action: RuntimeAction): 
         connected: true,
         projectName: action.projectName,
         model: action.model,
+        providerId: action.providerId?.trim() || state.providerId,
+        baseUrl: action.baseUrl ?? state.baseUrl,
         branch: action.branch,
         fatalError: null,
       };
     case "fatal":
       return { ...state, fatalError: action.message, connected: false, running: false };
-    case "set_overlay":
-      return { ...state, overlay: action.overlay };
+    case "set_overlay": {
+      const modelPickerProviderId =
+        action.modelPickerProviderId !== undefined
+          ? action.modelPickerProviderId
+          : action.overlay === "none"
+            ? null
+            : state.modelPickerProviderId;
+      return { ...state, overlay: action.overlay, modelPickerProviderId };
+    }
     case "set_help":
       return { ...state, helpText: action.text };
     case "set_model":
-      return { ...state, model: action.model };
+      return {
+        ...state,
+        model: action.model,
+        providerId: action.providerId?.trim() || state.providerId,
+        baseUrl: action.baseUrl ?? state.baseUrl,
+      };
     case "clear_approval":
       return { ...state, approval: null };
     case "clear_recovery":
@@ -248,9 +285,26 @@ function applyUiEvent(state: RuntimeViewState, event: UiEventEnvelope): RuntimeV
     }
     case "activity.delta": {
       const text = String(payload.text ?? "");
+      const newline = payload.newline !== false;
+      const phaseId = String(payload.phaseId ?? "");
+      const streamKey = `delta:${phaseId}`;
+      if (!newline && state.transcript.length > 0) {
+        const last = state.transcript[state.transcript.length - 1]!;
+        if (last.kind === "line" && last.streamKey === streamKey) {
+          const updated = { ...last, text: last.text + text };
+          return {
+            ...state,
+            transcript: [...state.transcript.slice(0, -1), updated],
+            recentEventTypes,
+          };
+        }
+      }
       return {
         ...state,
-        transcript: push(state.transcript, line(text, "dim", "·")),
+        transcript: push(
+          state.transcript,
+          line(text, "dim", phaseId === "REASONING" ? "…" : "·", streamKey),
+        ),
         recentEventTypes,
       };
     }
@@ -430,11 +484,17 @@ function applyUiEvent(state: RuntimeViewState, event: UiEventEnvelope): RuntimeV
     }
     case "model.changed": {
       const model = String(payload.model ?? state.model);
-      const providerId = String(payload.providerId ?? "");
-      const label = providerId ? `${providerId}/${model}` : model;
+      const providerId = String(payload.providerId ?? state.providerId);
+      const baseUrl =
+        payload.baseUrl == null || payload.baseUrl === ""
+          ? state.baseUrl
+          : String(payload.baseUrl);
+      const label = providerId && providerId !== "—" ? `${providerId}/${model}` : model;
       return {
         ...state,
         model,
+        providerId,
+        baseUrl,
         transcript: push(state.transcript, line(`model ${label}`, "success", "✓")),
         recentEventTypes,
       };
@@ -442,6 +502,22 @@ function applyUiEvent(state: RuntimeViewState, event: UiEventEnvelope): RuntimeV
     default:
       return { ...state, recentEventTypes };
   }
+}
+
+export function formatModelLabel(state: {
+  providerId: string;
+  model: string;
+  baseUrl?: string | null;
+}): string {
+  const provider = state.providerId?.trim();
+  const model = state.model?.trim() || "—";
+  if (provider && provider !== "—") {
+    if (provider === "ollama") {
+      return `ollama/${model} · local`;
+    }
+    return `${provider}/${model}`;
+  }
+  return model;
 }
 
 export function formatTokens(used: number, budget: number | null): string {

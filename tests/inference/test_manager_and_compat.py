@@ -5,12 +5,12 @@ from __future__ import annotations
 from src.config.schema import InferenceProviderConfig
 from src.credentials import CredentialManager, MemoryStore
 from src.inference import (
-    FakeInferenceProvider,
     InferenceChatModelAdapter,
     InferenceRequest,
     Message,
     build_inference,
 )
+from tests.doubles import FakeInferenceProvider
 
 
 def test_build_inference_with_fake() -> None:
@@ -18,7 +18,7 @@ def test_build_inference_with_fake() -> None:
     mgr = build_inference(
         InferenceProviderConfig(model="fake-model"),
         CredentialManager(store=MemoryStore()),
-        fake=fake,
+        provider=fake,
         start=True,
     )
     assert mgr.health().ok
@@ -33,7 +33,7 @@ def test_compat_adapter_for_context() -> None:
     mgr = build_inference(
         InferenceProviderConfig(),
         CredentialManager(store=MemoryStore()),
-        fake=fake,
+        provider=fake,
     )
     adapter = InferenceChatModelAdapter(mgr)
     out = adapter.complete([{"role": "user", "content": "summarize this"}])

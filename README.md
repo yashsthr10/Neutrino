@@ -14,8 +14,7 @@ Presentation clients render state and send commands — no business logic in the
 
 ```
 Ink TUI (tui/)  --NDJSON JSON-RPC-->  Python runtime (src/rpc)
-                                         └─ AgentOrchestrator (default)
-                                         └─ DummyOrchestrator if NEUTRINO_ORCHESTRATOR=dummy
+                                         └─ AgentOrchestrator
 OrchestratorPort + UIEvent             (src/ports)
 Agent Loop + L1–L6 prompts             (src/agent)       Inference ↔ Tool Engine cycle
 Orchestrator                           (src/orchestrator)
@@ -36,13 +35,12 @@ Config + profiles                      (src/config)
 |-------|------|--------|
 | Ink TUI | `tui/` | Live — `/auth` keys, `/model` (creds-gated providers) |
 | Presentation protocol | `protocol/` | v1.0.0 NDJSON JSON-RPC |
-| RPC bridge | `src/rpc/` | Live — AgentOrchestrator default; dummy via env |
+| RPC bridge | `src/rpc/` | Live — AgentOrchestrator + real RNA/inference |
 | Orchestrator port | `src/ports/orchestrator_port.py` | Contract defined |
 | Agent Loop | `src/agent/` | Live — loop, L1–L6 prompts, reminders, soft state |
 | Orchestrator | `src/orchestrator/` | Live — continuous AGENT + CompletionPolicy |
-| Dummy / fake orch | `src/rpc/dummy.py`, `src/orchestrator/fake.py` | UI smoke stand-in |
 | Tool Engine | `src/tool_engine/` | Live — open `AGENT` catalog + when/not-when metadata |
-| Inference | `src/inference/` | Live — OpenAI-compatible, LangChain natives, Fake |
+| Inference | `src/inference/` | Live — OpenAI-compatible, LangChain natives |
 | Credentials | `src/credentials/` | Live — keyring/env/encrypted; CLI `neutrino-auth` |
 | RNA | `src/rna/` | Implemented (CLI `rna`, MCP optional) |
 | Context manager | `src/context/` | Implemented; ChatModel via Inference adapter |
@@ -61,8 +59,6 @@ Config + profiles                      (src/config)
    - Model chooses tools / depth (soft phases: DISCOVER → … → DONE)
    - `CompletionPolicy` decides DONE / CONTINUE / BLOCKED
 5. Runtime pushes `ui.event` notifications; TUI reducer → transcript
-
-Set `NEUTRINO_ORCHESTRATOR=dummy` to force the scripted stand-in (tests / UI-only smoke).
 
 ### CompletionPolicy (short)
 
@@ -86,9 +82,6 @@ python -m src.agent --repo . "add a docstring to src/agent/loop.py"
 
 # Auto-approve shell tools
 python -m src.agent --yes "run the unit tests"
-
-# Offline smoke (no network)
-python -m src.agent --fake "ping"
 ```
 
 ## Tool Engine (`src/tool_engine`)
@@ -124,7 +117,6 @@ No sidebar / multi-panel dashboard. Diffs and phase lines render inline in the s
 | `framing.py` | Locked NDJSON stdout |
 | `mapper.py` | `UIEvent` → `ui.event` |
 | `server.py` | JSON-RPC dispatch; wires AgentOrchestrator |
-| `dummy.py` | Scripted UI smoke (emits legacy PLAN/EXECUTE/VERIFY markers; not the real AGENT loop) |
 | `__main__.py` | `python -m src.rpc` |
 
 ## Commands

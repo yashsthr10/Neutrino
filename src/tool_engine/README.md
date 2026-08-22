@@ -40,8 +40,7 @@ python -c "from src.tool_engine import build_tool_engine; print('ok')"
 Prefer `build_tool_engine(...)` with injected ports — the canonical wiring path:
 
 ```python
-from src.context.fake import FakeContextManager, FakeConversationManager
-from src.rna.fake import FakeRna
+from tests.doubles import FakeContextManager, FakeConversationManager, FakeRna
 from src.tool_engine import RuntimeServices, ToolRequest, build_tool_engine
 
 engine = build_tool_engine(

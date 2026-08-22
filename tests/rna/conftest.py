@@ -6,7 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from src.rna import FakeRna, Rna
+from tests.doubles import FakeRna
+from src.rna import Rna
 from src.rna.config import RnaConfig
 
 FIXTURES = Path(__file__).parent / "fixtures"
