@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
-from typing import Any
 
 from src.inference.models.capabilities import ProviderCapabilities
 from src.inference.models.request import InferenceRequest, ToolCall

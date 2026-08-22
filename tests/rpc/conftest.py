@@ -5,13 +5,12 @@ from __future__ import annotations
 import uuid
 from pathlib import Path
 
-import pytest
 
 from src.config.schema import InferenceProviderConfig
 from src.inference import build_inference
 from src.orchestrator import AgentOrchestrator
 from src.rpc.framing import NdjsonWriter
-from src.rpc.server import RpcServer, build_server
+from src.rpc.server import RpcServer
 from src.tool_engine import build_tool_engine_from_subsystem
 from tests.doubles import FakeInferenceProvider, FakeRna
 

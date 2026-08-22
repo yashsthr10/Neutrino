@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Iterator
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -11,7 +10,12 @@ import pytest
 
 from src.agent.loop import AgentLoop
 from src.agent.policy import AgentPolicy
-from tests.doubles import FakeContextManager, FakeConversationManager, QueueInference, ScriptedInference
+from tests.doubles import (
+    FakeContextManager,
+    FakeConversationManager,
+    QueueInference,
+    ScriptedInference,
+)
 from src.context.models import ContextPackage, ContextRequest
 from src.context.runtime.conversation_context import ConversationContext
 from src.context.runtime.execution_context import ExecutionContext

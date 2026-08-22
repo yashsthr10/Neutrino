@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
 
 from src.agent.events import ModelCompleted, TimingSummary, ToolCallCompleted
 from src.agent.loop import AgentLoop

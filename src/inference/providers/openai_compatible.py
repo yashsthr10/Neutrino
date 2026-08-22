@@ -182,13 +182,13 @@ class OpenAICompatibleProvider:
                         continue
                     choice = (data.get("choices") or [{}])[0]
                     delta = choice.get("delta") or {}
-                    reasoning = delta.get("reasoning_content") or delta.get("reasoning") or delta.get(
-                        "thinking"
+                    reasoning = (
+                        delta.get("reasoning_content")
+                        or delta.get("reasoning")
+                        or delta.get("thinking")
                     )
                     if reasoning:
-                        yield InferenceStreamEvent(
-                            type="delta_reasoning", text=str(reasoning)
-                        )
+                        yield InferenceStreamEvent(type="delta_reasoning", text=str(reasoning))
                     if delta.get("content"):
                         yield InferenceStreamEvent(type="delta_text", text=str(delta["content"]))
                     for tc in delta.get("tool_calls") or []:

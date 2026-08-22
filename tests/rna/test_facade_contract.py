@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.doubles import FakeRna, ScriptedInference
+from tests.doubles import FakeRna
 from src.rna import Rna, RnaPort
 
 

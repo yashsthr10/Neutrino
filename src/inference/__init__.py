@@ -28,6 +28,7 @@ from src.inference.models import (
 from src.inference.ports import InferencePort
 
 __all__ = [
+    "InferenceChatModelAdapter",
     "InferenceManager",
     "build_inference",
     "InferencePort",

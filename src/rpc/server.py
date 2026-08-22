@@ -293,7 +293,7 @@ class RpcServer:
                     "type": "model.changed",
                     "payload": {
                         "model": self._model_name,
-        "providerId": inference_rpc.display_provider_id(self._inference),
+                        "providerId": inference_rpc.display_provider_id(self._inference),
                         "type": self._inference.type,
                         "vendor": self._inference.vendor,
                         "baseUrl": self._inference.base_url,

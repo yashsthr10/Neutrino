@@ -42,9 +42,7 @@ def test_stream_parses_ollama_reasoning_delta() -> None:
         ),
         client=client,
     )
-    events = list(
-        provider.stream(InferenceRequest(messages=(Message(role="user", content="hi"),)))
-    )
+    events = list(provider.stream(InferenceRequest(messages=(Message(role="user", content="hi"),))))
     provider.close()
     reasoning = [e for e in events if e.type == "delta_reasoning"]
     content = [e for e in events if e.type == "delta_text"]

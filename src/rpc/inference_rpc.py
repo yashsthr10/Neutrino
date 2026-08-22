@@ -67,8 +67,10 @@ def _provider_meta(provider_id: str) -> dict[str, str]:
 
 def display_provider_id(cfg: InferenceProviderConfig) -> str:
     """Map persisted openai-compatible Ollama URLs back to the ollama provider id."""
-    if cfg.type == "openai-compatible" and cfg.base_url and _looks_like_local_openai_compatible(
-        cfg.base_url
+    if (
+        cfg.type == "openai-compatible"
+        and cfg.base_url
+        and _looks_like_local_openai_compatible(cfg.base_url)
     ):
         return "ollama"
     return cfg.provider_id()

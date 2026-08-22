@@ -11,14 +11,14 @@ COVERAGE_MIN ?= 65
 
 help:
 	@echo "Targets:"
-	@echo "  make format  — format Python (ruff format + safe autofix)"
+	@echo "  make format  — format Python (ruff format + lint autofix)"
 	@echo "  make check   — format check, lint, pytest+coverage, TUI typecheck/tests"
 	@echo "  make test    — pytest only (no coverage gate)"
 	@echo "  make build   — install editable +[dev] and build the TUI"
 
 format:
 	$(PYTHON) -m ruff format $(SRC) $(TESTS)
-	$(PYTHON) -m ruff check --fix --exit-zero $(SRC) $(TESTS)
+	$(PYTHON) -m ruff check --fix --unsafe-fixes $(SRC) $(TESTS)
 
 check:
 	$(PYTHON) -m ruff format --check $(SRC) $(TESTS)
