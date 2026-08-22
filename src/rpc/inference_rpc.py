@@ -4,59 +4,19 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.config.constants import (
+    ALWAYS_ELIGIBLE_PROVIDERS as ALWAYS_ELIGIBLE,
+    CATALOG_MODEL_LABELS,
+    CATALOG_MODELS,
+    LOCAL_INFERENCE_HOST_MARKERS,
+    OLLAMA_DEFAULT_BASE_URL,
+    OLLAMA_DEFAULT_HOST,
+    OLLAMA_DEFAULT_TIMEOUT_S,
+    OPENROUTER_DEFAULT_BASE_URL,
+)
 from src.config.schema import InferenceProviderConfig
 from src.credentials.manager import CredentialManager
 from src.credentials.models import KNOWN_PROVIDERS
-
-# Shown when live list_models is unavailable (native SDKs / offline).
-CATALOG_MODELS: dict[str, tuple[str, ...]] = {
-    "openai": ("gpt-4o", "gpt-4o-mini", "o1", "o3-mini", "o4-mini"),
-    "anthropic": (
-        "claude-sonnet-4-20250514",
-        "claude-opus-4-20250514",
-        "claude-haiku-4-5-20251001",
-    ),
-    "azure_openai": ("gpt-4o", "gpt-4o-mini", "gpt-4.1"),
-    "bedrock": (
-        "anthropic.claude-sonnet-4-20250514-v1:0",
-        "anthropic.claude-3-5-sonnet-20241022-v2:0",
-    ),
-    # Prefer current IDs; gemini-2.5-flash is blocked for many new API projects.
-    "google_genai": (
-        "gemini-3.6-flash",
-        "gemini-3.5-flash",
-        "gemini-flash-latest",
-        "gemini-pro-latest",
-        "gemini-2.5-flash-lite",
-        "gemini-2.5-pro",
-    ),
-    "groq": (
-        "qwen/qwen3.6-27b",
-        "llama-3.3-70b-versatile",
-        "llama-3.1-8b-instant",
-        "openai/gpt-oss-20b",
-        "meta-llama/llama-4-scout-17b-16e-instruct",
-        "mixtral-8x7b-32768",
-    ),
-    "openrouter": (
-        "deepseek/deepseek-v4-flash",
-        "deepseek/deepseek-v4-flash-0731",
-        "~deepseek/deepseek-v4-flash-latest",
-        "openai/gpt-4o",
-        "anthropic/claude-sonnet-4",
-        "google/gemini-2.5-flash",
-    ),
-    "ollama": ("llama3.2", "qwen2.5-coder", "codellama", "mistral", "gemma2"),
-    "openai-compatible": ("llama3.2", "qwen2.5-coder", "codellama", "mistral"),
-}
-
-OPENROUTER_DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
-OLLAMA_DEFAULT_HOST = "http://127.0.0.1:11434"
-# Local CPU inference with a full tool catalog can exceed 60s before the first stream chunk.
-OLLAMA_DEFAULT_TIMEOUT_S = 600.0
-
-# Providers that may appear without a stored secret (local / AWS profile chain).
-ALWAYS_ELIGIBLE = frozenset({"ollama", "openai-compatible"})
 
 
 def _provider_meta(provider_id: str) -> dict[str, str]:
@@ -190,7 +150,7 @@ def config_for_provider(
         return InferenceProviderConfig(
             type="openai-compatible",
             model=model or base.model or "llama3.2",
-            base_url=base_url or base.base_url or "http://127.0.0.1:11434/v1",
+            base_url=base_url or base.base_url or OLLAMA_DEFAULT_BASE_URL,
             temperature=base.temperature,
             max_tokens=base.max_tokens,
             timeout_s=base.timeout_s,
@@ -260,9 +220,7 @@ def _resolve_openrouter_base_url(
 
 def _looks_like_local_openai_compatible(url: str) -> bool:
     lower = url.strip().lower()
-    return any(
-        token in lower for token in ("127.0.0.1", "localhost", "0.0.0.0", ":11434", "/ollama")
-    )
+    return any(token in lower for token in LOCAL_INFERENCE_HOST_MARKERS)
 
 
 def list_models_for_provider(
@@ -307,13 +265,27 @@ def list_models_for_provider(
     except Exception as exc:  # noqa: BLE001
         warning = str(exc)
 
-    # Merge: live first, then curated ids not already present
-    seen = {m["id"] for m in live}
-    models_out = list(live)
+    # Curated first so preferred models stay within the TUI display window;
+    # then live ids not already listed.
+    models_out: list[dict[str, Any]] = []
+    seen: set[str] = set()
     for mid in curated:
-        if mid not in seen:
-            models_out.append({"id": mid, "ownedBy": provider_id})
-            seen.add(mid)
+        entry: dict[str, Any] = {"id": mid, "ownedBy": provider_id}
+        label = CATALOG_MODEL_LABELS.get(mid)
+        if label:
+            entry["name"] = label
+        models_out.append(entry)
+        seen.add(mid)
+    for m in live:
+        mid = m["id"]
+        if mid in seen:
+            continue
+        entry = dict(m)
+        label = CATALOG_MODEL_LABELS.get(mid)
+        if label and "name" not in entry:
+            entry["name"] = label
+        models_out.append(entry)
+        seen.add(mid)
 
     return {
         "providerId": provider_id,

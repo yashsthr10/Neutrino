@@ -6,6 +6,10 @@ import json
 from collections.abc import Iterator
 from typing import Any
 
+from src.config.constants import (
+    LOCAL_INFERENCE_HOST_MARKERS,
+    OPENROUTER_DEFAULT_BASE_URL,
+)
 from src.config.schema import InferenceProviderConfig
 from src.credentials.models import ResolvedCredentials
 from src.inference.errors import (
@@ -27,6 +31,7 @@ from src.inference.models.response import (
     ModelInfo,
 )
 from src.inference.models.usage import Usage
+from src.inference.stream_accumulator import stream_events_from_response
 
 
 class LangChainProvider:
@@ -164,12 +169,10 @@ class LangChainProvider:
         )
 
     def stream(self, request: InferenceRequest) -> Iterator[InferenceStreamEvent]:
-        # Phase A: fall back to non-streaming chat then emit as deltas
-        resp = self.chat(request)
-        if resp.content:
-            yield InferenceStreamEvent(type="delta_text", text=resp.content)
-        yield InferenceStreamEvent(type="usage", usage=resp.usage)
-        yield InferenceStreamEvent(type="done", finish_reason=resp.finish_reason)
+        # Phase A: fall back to non-streaming chat then emit as deltas.
+        # Must preserve tool_calls — dropping them silently skips the whole tool loop
+        # (OpenRouter / native LangChain vendors were finishing with tools=0).
+        yield from stream_events_from_response(self.chat(request))
 
     def _build_chat_model(self) -> Any:
         vendor = self._vendor
@@ -373,14 +376,19 @@ def _parse_lc_tool_call(tc: Any) -> ToolCall | None:
     return ToolCall(id=tid, name=name, arguments=arguments)
 
 
-_OPENROUTER_DEFAULT_BASE = "https://openrouter.ai/api/v1"
+OPENROUTER_DEFAULT_BASE = OPENROUTER_DEFAULT_BASE_URL
+
+
+def openrouter_base_url(configured: str | None) -> str:
+    """Use OpenRouter cloud URL; ignore inherited local openai-compatible hosts."""
+    if not configured or not configured.strip():
+        return OPENROUTER_DEFAULT_BASE_URL
+    lower = configured.strip().lower()
+    if any(token in lower for token in LOCAL_INFERENCE_HOST_MARKERS):
+        return OPENROUTER_DEFAULT_BASE_URL
+    return configured.rstrip("/")
 
 
 def _openrouter_base_url(configured: str | None) -> str:
-    """Use OpenRouter cloud URL; ignore inherited local openai-compatible hosts."""
-    if not configured or not configured.strip():
-        return _OPENROUTER_DEFAULT_BASE
-    lower = configured.strip().lower()
-    if any(token in lower for token in ("127.0.0.1", "localhost", "0.0.0.0", ":11434", "/ollama")):
-        return _OPENROUTER_DEFAULT_BASE
-    return configured.rstrip("/")
+    """Backward-compatible alias."""
+    return openrouter_base_url(configured)

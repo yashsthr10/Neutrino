@@ -13,16 +13,24 @@ AgentOrchestrator
 
 ## Run lifecycle
 
-1. Build `ExecutionContext` (`task_complexity` from `fast`→SIMPLE / `deep`→COMPLEX)  
+1. Build `ExecutionContext` (`task_complexity` from `fast`→SIMPLE / `deep`→COMPLEX);
+   carry prior `code_changes` and seed LLM history from the session  
 2. Probe environment; seed verification policy on context  
 3. `WorkflowController.start()` → `AGENT`  
-4. `controller.run(..., fsm_state="AGENT")`  
+4. `controller.run(..., fsm_state="AGENT", messages=prior+user)`  
 5. On phase `COMPLETED` (model final):
    - `evaluate_completion(...)`  
    - **DONE** → mark workflow DONE, `RunFinished(ok=True)`  
    - **CONTINUE** → set pending L6 nudge, `continue_phase` (same history)  
    - **BLOCKED** → `RunFinished(ok=False)`  
 6. Approvals: `WAITING_USER` for `executor.run` → TUI approve → resume  
+
+**Multi-turn memory:** each user submit keeps prior turns in `_session_history`
+(falling back to ConversationManager user/assistant messages). Follow-ups like
+“please continue” see the earlier task in the LLM context. History is dual-capped
+via ``SESSION_HISTORY_MAX_MESSAGES`` / ``SESSION_HISTORY_MAX_TOKENS`` in
+[`src/config/constants.py`](../config/constants.py); oldest messages are dropped
+first when either limit is hit (summarization/retrieval can replace this later). 
 
 There is **no** hard PLAN→EXECUTE→VERIFY march. Soft phases in the prompt (DISCOVER/IMPLEMENT/…) are advisory; UI may display the soft phase as `fsmState` while the hard status is still `AGENT`.
 

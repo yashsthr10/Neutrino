@@ -6,14 +6,15 @@ import json
 from dataclasses import asdict, is_dataclass
 from typing import Any
 
+from src.config.constants import (
+    TOOL_MAX_FILE_CHARS,
+    TOOL_MAX_REPO_ITEMS,
+    TOOL_MAX_RESULT_BYTES,
+    TOOL_MAX_SERIALIZED_MESSAGES,
+)
 from src.context.models import ContextPackage, ContextResult
 from src.rna.models import RnaResult
 from src.tool_engine.models import ToolMeta, ToolResult
-
-_MAX_RESULT_BYTES = 48_000
-_MAX_FILE_CHARS = 4_000
-_MAX_REPO_ITEMS = 20
-_MAX_MESSAGES = 12
 
 
 class ResultSerializer:
@@ -58,7 +59,7 @@ class ResultSerializer:
         else:
             data = _to_jsonable(raw)
 
-        data, was_capped = _cap_payload(data, _MAX_RESULT_BYTES)
+        data, was_capped = _cap_payload(data, TOOL_MAX_RESULT_BYTES)
         truncated = truncated or was_capped
         encoded = json.dumps(data, default=str)
         return ToolResult(
@@ -105,14 +106,14 @@ class ResultSerializer:
 
     def _serialize_context_package(self, package: ContextPackage) -> dict[str, Any]:
         repo_items = []
-        for item in package.repository.items[:_MAX_REPO_ITEMS]:
+        for item in package.repository.items[:TOOL_MAX_REPO_ITEMS]:
             payload = _to_jsonable(item.payload)
             if isinstance(payload, dict) and "content" in payload:
                 content = str(payload.get("content") or "")
-                if len(content) > _MAX_FILE_CHARS:
+                if len(content) > TOOL_MAX_FILE_CHARS:
                     payload = {
                         **payload,
-                        "content": content[:_MAX_FILE_CHARS],
+                        "content": content[:TOOL_MAX_FILE_CHARS],
                         "truncated": True,
                     }
             repo_items.append(
@@ -126,7 +127,7 @@ class ResultSerializer:
             )
         messages = [
             {"role": m.role, "content": m.content[:500], "id": m.id}
-            for m in package.conversation.recent_messages[:_MAX_MESSAGES]
+            for m in package.conversation.recent_messages[:TOOL_MAX_SERIALIZED_MESSAGES]
         ]
         return {
             "task_description": package.request.task_description,

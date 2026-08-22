@@ -39,7 +39,7 @@ class LogLine:
     """Structured log for the Logs panel."""
 
     message: str
-    level: Literal["info", "warning", "error"] = "info"
+    level: Literal["info", "warning", "error", "debug"] = "info"
 
 
 @dataclass(frozen=True, slots=True)

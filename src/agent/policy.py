@@ -7,16 +7,17 @@ import json
 import time
 from dataclasses import dataclass
 
+from src.config.constants import DEFAULT_MAX_ITERATIONS, DEFAULT_TOKEN_BUDGET
 from src.agent.state import AgentLoopState
 
 
 @dataclass(frozen=True, slots=True)
 class AgentPolicy:
-    max_iterations: int = 25
+    max_iterations: int = DEFAULT_MAX_ITERATIONS
     max_tool_failures: int = 3
     max_same_tool_repetition: int = 3
     max_runtime_seconds: float = 1800.0
-    token_budget: int = 100_000
+    token_budget: int = DEFAULT_TOKEN_BUDGET
 
     def should_continue(self, state: AgentLoopState) -> tuple[bool, str | None]:
         if state.cancel_requested:

@@ -62,7 +62,13 @@ def main() -> None:
         "-v",
         "--verbose",
         action="store_true",
-        help="Verbose Python runtime logging (stderr).",
+        help="Alias for --log-level debug (Python runtime stderr + TUI debug lines).",
+    )
+    parser.add_argument(
+        "--log-level",
+        choices=("debug", "info", "warning", "error"),
+        default=None,
+        help="Runtime log level (default: warning). debug logs LLM/tool payloads.",
     )
     # Accept unknown for forward-compat with future TUI flags
     args, rest = parser.parse_known_args()
@@ -85,8 +91,11 @@ def main() -> None:
     env.setdefault("PYTHONUNBUFFERED", "1")
     # Prefer current interpreter for the child RPC process
     env.setdefault("NEUTRINO_PYTHON", sys.executable)
-    if args.verbose:
+    if args.log_level:
+        env["NEUTRINO_LOG_LEVEL"] = args.log_level
+    if args.verbose or args.log_level == "debug":
         env["NEUTRINO_RPC_VERBOSE"] = "1"
+        env.setdefault("NEUTRINO_LOG_LEVEL", "debug")
 
     raise SystemExit(subprocess.call(cmd, env=env, cwd=str(_REPO_ROOT)))
 

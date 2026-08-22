@@ -66,3 +66,19 @@ def test_expand_allowed_in_agent(engine: ToolEngine) -> None:
     )
     # May succeed or fail on missing context backend wiring, but not permission_denied.
     assert result.meta.error != "permission_denied"
+
+
+def test_executor_apply_accepts_large_patch(engine: ToolEngine) -> None:
+    """Landing-page sized patches must not hit the generic 16KiB string cap."""
+    body = "x" * 20_000
+    patch = "*** Begin Patch\n" "*** Add File: index.html\n" f"+{body}\n" "*** End Patch\n"
+    result = engine.invoke(
+        ToolRequest(
+            name="executor.apply",
+            arguments={"format": "patch", "patch": patch, "dry_run": True},
+        ),
+        state="AGENT",
+    )
+    assert result.meta.error != "validation_error"
+    assert "exceeds max length" not in (result.meta.error or "")
+    assert "exceeds max length" not in " ".join(result.errors or [])

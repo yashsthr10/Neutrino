@@ -25,6 +25,13 @@ class ModelCompleted:
     input_tokens: int = 0
     output_tokens: int = 0
     tool_count: int = 0
+    """Number of tools offered to the model (schema catalog size)."""
+    response_tool_calls: int = 0
+    """Number of tool calls returned in the model response."""
+    finish_reason: str | None = None
+    outcome: str | None = None
+    content_preview: str | None = None
+    tool_call_preview: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

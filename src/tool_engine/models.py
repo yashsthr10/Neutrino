@@ -18,6 +18,7 @@ class ToolParam:
     description: str = ""
     default: Any = None
     item_type: ParamType = "string"  # element type when type == "array"
+    max_length: int | None = None  # string length cap; None → validator default
 
 
 @dataclass(frozen=True, slots=True)

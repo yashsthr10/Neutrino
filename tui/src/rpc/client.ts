@@ -60,16 +60,15 @@ export class JsonRpcClient {
   async start(): Promise<SessionHelloResult> {
     const python = resolvePython();
     const repoRoot = findRepoRoot();
-    this.child = spawn(
-      python,
-      [
-        "-m",
-        "src.rpc",
-        "--repo",
-        this.cwd,
-        ...(process.env.NEUTRINO_RPC_VERBOSE ? ["-v"] : []),
-      ],
-      {
+    const logLevel = (process.env.NEUTRINO_LOG_LEVEL || "").trim().toLowerCase();
+    const verbose = Boolean(process.env.NEUTRINO_RPC_VERBOSE);
+    const rpcArgs = ["-m", "src.rpc", "--repo", this.cwd];
+    if (logLevel === "debug" || logLevel === "info" || logLevel === "warning" || logLevel === "error") {
+      rpcArgs.push("--log-level", logLevel);
+    } else if (verbose) {
+      rpcArgs.push("-v");
+    }
+    this.child = spawn(python, rpcArgs, {
       cwd: repoRoot,
       env: {
         ...process.env,
@@ -77,8 +76,7 @@ export class JsonRpcClient {
         PYTHONPATH: [repoRoot, process.env.PYTHONPATH].filter(Boolean).join(path.delimiter),
       },
       stdio: ["pipe", "pipe", "pipe"],
-    },
-    );
+    });
 
     this.child.stderr.on("data", (chunk: Buffer) => {
       const text = chunk.toString("utf8").trim();

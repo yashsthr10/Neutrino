@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from src.config.constants import EXECUTOR_APPLY_PATCH_MAX_LENGTH
 from src.tool_engine.models import ToolParam, ToolSpec
 
 _STATES = frozenset({"AGENT", "PLAN", "CONTEXT", "EXECUTE", "VERIFY", "REVIEW"})
@@ -26,7 +27,13 @@ def execution_tool_specs() -> list[ToolSpec]:
             when_not_to_use="Before reading an existing file; not for running tests or shell.",
             pairs_with=("rna.read_file", "executor.diff", "tests.run"),
             parameters=(
-                ToolParam("patch", "string", True, "Patch / SEARCH-REPLACE / udiff payload"),
+                ToolParam(
+                    "patch",
+                    "string",
+                    True,
+                    "Patch / SEARCH-REPLACE / udiff payload",
+                    max_length=EXECUTOR_APPLY_PATCH_MAX_LENGTH,
+                ),
                 ToolParam("path", "string", False, "Optional target path hint"),
                 ToolParam(
                     "format",

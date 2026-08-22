@@ -4,7 +4,7 @@ export const PROTOCOL_VERSION = "1.0.0";
 
 export type RuntimeMode = "fast" | "deep" | "auto";
 export type ApprovalAction = "accept" | "edit" | "reject" | "view";
-export type LogLevel = "info" | "warning" | "error";
+export type LogLevel = "info" | "warning" | "error" | "debug";
 
 export type UiEventType =
   | "execution.started"
@@ -79,7 +79,7 @@ export interface InferenceCatalogResult {
 
 export interface InferenceListModelsResult {
   providerId: string;
-  models: { id: string; ownedBy?: string | null }[];
+  models: { id: string; name?: string | null; ownedBy?: string | null }[];
   source: string;
   warning?: string | null;
 }

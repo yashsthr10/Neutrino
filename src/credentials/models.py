@@ -5,19 +5,17 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from src.config.constants import KNOWN_PROVIDERS
+
 CredentialKind = Literal["api_key", "bearer", "azure", "aws", "none"]
 
-KNOWN_PROVIDERS = (
-    "openai",
-    "anthropic",
-    "azure_openai",
-    "bedrock",
-    "google_genai",
-    "groq",
-    "openrouter",
-    "ollama",
-    "openai-compatible",
-)
+__all__ = [
+    "KNOWN_PROVIDERS",
+    "CredentialKind",
+    "CredentialRecord",
+    "ResolvedCredentials",
+    "ProviderAuthStatus",
+]
 
 
 @dataclass(frozen=True, slots=True)

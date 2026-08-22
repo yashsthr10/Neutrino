@@ -7,6 +7,15 @@ from collections.abc import Iterator
 
 import httpx
 
+from src.config.constants import (
+    LOCAL_INFERENCE_HOST_MARKERS,
+    OLLAMA_DEFAULT_BASE_URL,
+    OLLAMA_DEFAULT_TIMEOUT_S,
+    OPENROUTER_DEFAULT_TIMEOUT_S,
+    OPENROUTER_HTTP_REFERER,
+    OPENROUTER_X_TITLE,
+)
+from src.config.schema import InferenceProviderConfig
 from src.credentials.models import ResolvedCredentials
 from src.inference.adapters.request_adapter import request_to_openai_body
 from src.inference.adapters.response_adapter import parse_openai_chat_completion
@@ -31,12 +40,11 @@ from src.inference.models.response import (
     ModelInfo,
 )
 from src.inference.models.usage import Usage
-from src.config.schema import InferenceProviderConfig
 
 
 def _is_local_base_url(url: str) -> bool:
     lower = url.strip().lower()
-    return any(token in lower for token in ("127.0.0.1", "localhost", "0.0.0.0", ":11434"))
+    return any(token in lower for token in LOCAL_INFERENCE_HOST_MARKERS)
 
 
 class OpenAICompatibleProvider:
@@ -50,7 +58,7 @@ class OpenAICompatibleProvider:
         client: httpx.Client | None = None,
     ) -> None:
         self._config = config
-        base = (config.base_url or "http://127.0.0.1:11434/v1").rstrip("/")
+        base = (config.base_url or OLLAMA_DEFAULT_BASE_URL).rstrip("/")
         self._base_url = base
         self._credentials = credentials
         self._client = client
@@ -64,9 +72,17 @@ class OpenAICompatibleProvider:
             )
             if api_key:
                 headers["Authorization"] = f"Bearer {api_key}"
+            # OpenRouter ranks apps that identify themselves; harmless elsewhere.
+            if "openrouter.ai" in self._base_url.lower():
+                headers.setdefault("HTTP-Referer", OPENROUTER_HTTP_REFERER)
+                headers.setdefault("X-Title", OPENROUTER_X_TITLE)
             read_timeout = self._config.timeout_s
             if _is_local_base_url(self._base_url):
-                read_timeout = max(read_timeout, 600.0)
+                read_timeout = max(read_timeout, OLLAMA_DEFAULT_TIMEOUT_S)
+            elif "openrouter.ai" in self._base_url.lower():
+                # Long tool+reasoning generations; streaming keeps TTFT low but
+                # chunks can pause while the upstream model thinks.
+                read_timeout = max(read_timeout, OPENROUTER_DEFAULT_TIMEOUT_S)
             self._client = httpx.Client(
                 base_url=self._base_url,
                 headers=headers,
@@ -157,7 +173,9 @@ class OpenAICompatibleProvider:
             default_max_tokens=self._config.max_tokens,
         )
         body["stream"] = True
+        # OpenAI needs this for usage on the final chunk; OpenRouter includes usage anyway.
         body["stream_options"] = {"include_usage": True}
+        finish_reason = "stop"
         try:
             with self._client.stream("POST", "/chat/completions", json=body) as resp:
                 if resp.status_code in {401, 403}:
@@ -165,7 +183,18 @@ class OpenAICompatibleProvider:
                 if resp.status_code == 429:
                     raise RateLimitExceeded("rate limited")
                 if resp.status_code >= 400:
-                    raise ProviderUnavailable(f"HTTP {resp.status_code}")
+                    # Drain body for better errors (tool_use_failed, etc.).
+                    err_text = ""
+                    try:
+                        err_text = resp.read().decode("utf-8", errors="replace")
+                    except Exception:  # noqa: BLE001
+                        err_text = ""
+                    if is_tool_use_failed_message(err_text):
+                        raise ToolUseFailed(
+                            f"HTTP {resp.status_code}: {err_text[:500]}",
+                            failed_generation=extract_failed_generation(err_text),
+                        )
+                    raise ProviderUnavailable(f"HTTP {resp.status_code}: {err_text[:200]}")
                 for line in resp.iter_lines():
                     if not line:
                         continue
@@ -174,7 +203,7 @@ class OpenAICompatibleProvider:
                     else:
                         continue
                     if payload == "[DONE]":
-                        yield InferenceStreamEvent(type="done", finish_reason="stop")
+                        yield InferenceStreamEvent(type="done", finish_reason=finish_reason)
                         return
                     try:
                         data = json.loads(payload)
@@ -182,6 +211,9 @@ class OpenAICompatibleProvider:
                         continue
                     choice = (data.get("choices") or [{}])[0]
                     delta = choice.get("delta") or {}
+                    fr = choice.get("finish_reason")
+                    if fr:
+                        finish_reason = str(fr)
                     reasoning = (
                         delta.get("reasoning_content")
                         or delta.get("reasoning")
@@ -211,7 +243,12 @@ class OpenAICompatibleProvider:
                                 output_tokens=int(usage_raw.get("completion_tokens") or 0),
                             ),
                         )
-        except (AuthenticationError, RateLimitExceeded, ProviderUnavailable):
+        except (
+            AuthenticationError,
+            RateLimitExceeded,
+            ProviderUnavailable,
+            ToolUseFailed,
+        ):
             raise
         except httpx.TimeoutException as exc:
             raise Timeout(str(exc)) from exc

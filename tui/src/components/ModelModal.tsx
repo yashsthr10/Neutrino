@@ -9,7 +9,7 @@ import type {
 import { useRuntime } from "../state/RuntimeContext.js";
 import { colors } from "../theme/colors.js";
 
-type ModelEntry = { id: string; ownedBy?: string | null };
+type ModelEntry = { id: string; name?: string | null; ownedBy?: string | null };
 
 type Step =
   | { name: "providers" }
@@ -26,7 +26,11 @@ function parseIndex(raw: string, length: number): number | null {
 }
 
 function allowsCustomModelName(providerId: string): boolean {
-  return providerId === "ollama" || providerId === "openai-compatible";
+  return (
+    providerId === "ollama" ||
+    providerId === "openai-compatible" ||
+    providerId === "openrouter"
+  );
 }
 
 export function ModelModal() {
@@ -203,7 +207,7 @@ export function ModelModal() {
           ) : (
             step.models.slice(0, MODEL_DISPLAY_LIMIT).map((m, i) => (
               <Text key={m.id} color={colors.muted}>
-                [{i + 1}] {m.id}
+                [{i + 1}] {m.name ? `${m.name}  (${m.id})` : m.id}
               </Text>
             ))
           )}

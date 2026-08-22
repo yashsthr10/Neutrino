@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -48,6 +49,8 @@ from src.inference.ports.inference_port import InferencePort
 from src.inference.stream_accumulator import StreamChannel, accumulate_stream
 from src.tool_engine.engine import ToolEngine
 from src.tool_engine.models import ToolRequest, ToolResult
+
+logger = logging.getLogger("neutrino.agent")
 
 EventCallback = Callable[[AgentEvent], None]
 ContextUpdater = Callable[[ExecutionContext, str, dict[str, Any], ToolResult], ExecutionContext]
@@ -139,15 +142,6 @@ class AgentLoop:
                     input_tokens=int(response.usage.input_tokens),
                     output_tokens=int(response.usage.output_tokens),
                 )
-                self._emit(
-                    ModelCompleted(
-                        iteration=loop_state.iteration,
-                        latency_ms=model_ms,
-                        input_tokens=int(response.usage.input_tokens),
-                        output_tokens=int(response.usage.output_tokens),
-                        tool_count=len(tools),
-                    )
-                )
             except ToolUseFailed as exc:
                 handled, ctx = self._recover_tool_use_failed(
                     exc,
@@ -193,6 +187,34 @@ class AgentLoop:
                 response.usage.output_tokens
             )
             outcome = classify(response)
+            content_preview = _preview_text(response.content)
+            tool_preview = _preview_tool_calls(response.tool_calls)
+            logger.debug(
+                "llm.response iteration=%s finish=%s outcome=%s in=%s out=%s "
+                "response_tool_calls=%s content=%s tool_calls=%s",
+                loop_state.iteration,
+                response.finish_reason,
+                outcome.kind,
+                response.usage.input_tokens,
+                response.usage.output_tokens,
+                len(response.tool_calls),
+                content_preview,
+                tool_preview,
+            )
+            self._emit(
+                ModelCompleted(
+                    iteration=loop_state.iteration,
+                    latency_ms=model_ms,
+                    input_tokens=int(response.usage.input_tokens),
+                    output_tokens=int(response.usage.output_tokens),
+                    tool_count=len(tools),
+                    response_tool_calls=len(response.tool_calls),
+                    finish_reason=response.finish_reason,
+                    outcome=outcome.kind,
+                    content_preview=content_preview,
+                    tool_call_preview=tool_preview,
+                )
+            )
 
             if outcome.kind == "error":
                 loop_state.consecutive_failures += 1
@@ -496,6 +518,12 @@ class AgentLoop:
                 args = {"_raw": tc.arguments}
 
             self._emit(ToolCallRequested(name=tc.name, arguments=args, tool_call_id=tc.id))
+            logger.debug(
+                "tool.request name=%s id=%s args=%s",
+                tc.name,
+                tc.id,
+                _preview_text(json.dumps(args, default=str), limit=500),
+            )
 
             if tc.name in _TOOLS_NEEDING_APPROVAL and not args.get("approved"):
                 if self.auto_approve_shell:
@@ -555,6 +583,15 @@ class AgentLoop:
                 )
             cost_ms = float(result.meta.cost_ms or 0.0)
             self.timing.record_tool(tc.name, cost_ms)
+            result_preview = _preview_text(json.dumps(result.to_dict(), default=str), limit=800)
+            logger.debug(
+                "tool.response name=%s id=%s success=%s cost_ms=%.1f result=%s",
+                tc.name,
+                tc.id,
+                result.success,
+                cost_ms,
+                result_preview,
+            )
             self._emit(
                 ToolCallCompleted(
                     name=tc.name,
@@ -747,3 +784,21 @@ def _summarize_result(result: ToolResult) -> str:
     if result.errors:
         return "; ".join(result.errors)[:200]
     return result.meta.error or "failed"
+
+
+def _preview_text(text: str | None, *, limit: int = 400) -> str:
+    if not text:
+        return ""
+    compact = " ".join(text.split())
+    if len(compact) <= limit:
+        return compact
+    return compact[: limit - 1] + "…"
+
+
+def _preview_tool_calls(tool_calls: tuple[ToolCall, ...], *, limit: int = 400) -> str:
+    if not tool_calls:
+        return "[]"
+    parts = [f"{tc.name}({_preview_text(tc.arguments, limit=120)})" for tc in tool_calls[:8]]
+    if len(tool_calls) > 8:
+        parts.append(f"+{len(tool_calls) - 8} more")
+    return _preview_text("; ".join(parts), limit=limit)

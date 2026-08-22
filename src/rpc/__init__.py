@@ -2,25 +2,10 @@
 
 from __future__ import annotations
 
-PROTOCOL_VERSION = "1.0.0"
-PROTOCOL_MAJOR = 1
-
-CAPABILITIES = (
-    "execute",
-    "cancel",
-    "approve",
-    "status",
-    "undo",
-    "retry",
-    "refreshContext",
-    "requestRepoTree",
-    "selectRecovery",
-    "setMode",
-    "submitEdit",
-    "credentials.list",
-    "credentials.set",
-    "credentials.remove",
-    "inference.catalog",
-    "inference.listModels",
-    "runtime.setModel",
+from src.config.constants import (
+    PROTOCOL_MAJOR,
+    PROTOCOL_VERSION,
+    RPC_CAPABILITIES as CAPABILITIES,
 )
+
+__all__ = ["PROTOCOL_VERSION", "PROTOCOL_MAJOR", "CAPABILITIES"]

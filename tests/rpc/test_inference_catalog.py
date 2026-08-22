@@ -239,3 +239,23 @@ def test_list_models_returns_catalog_for_eligible(server) -> None:  # type: igno
     ids = {m["id"] for m in resp["result"]["models"]}
     assert "qwen/qwen3.6-27b" in ids
     assert "llama-3.3-70b-versatile" in ids
+
+
+def test_list_models_openrouter_includes_deepseek_v4_flash_0423(server) -> None:  # type: ignore[no-untyped-def]
+    srv, mgr, _out = server
+    mgr.set("openrouter", CredentialRecord(kind="api_key", fields={"api_key": "sk-or"}))
+    resp = srv.handle(
+        {
+            "jsonrpc": "2.0",
+            "id": 11,
+            "method": "inference.listModels",
+            "params": {"providerId": "openrouter"},
+        }
+    )
+    assert resp is not None
+    models = resp["result"]["models"]
+    assert models[0]["id"] == "deepseek/deepseek-v4-flash"
+    assert models[0]["name"] == "DeepSeek V4 Flash 0423"
+    ids = {m["id"] for m in models}
+    assert "deepseek/deepseek-v4-pro" in ids
+    assert "deepseek/deepseek-v4-flash-0731" in ids

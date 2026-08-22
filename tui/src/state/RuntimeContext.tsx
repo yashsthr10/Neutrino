@@ -71,6 +71,17 @@ export function RuntimeProvider({
         // stderr diagnostics — keep non-fatal unless disconnect
         if (message.toLowerCase().includes("traceback")) {
           dispatch({ type: "fatal", message });
+          return;
+        }
+        if (process.env.NEUTRINO_RPC_VERBOSE || process.env.NEUTRINO_LOG_LEVEL === "debug") {
+          for (const line of message.split("\n")) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            dispatch({
+              type: "ui_event",
+              event: { type: "log.line", payload: { message: trimmed, level: "debug" } },
+            });
+          }
         }
       },
       onExit: (code) => {

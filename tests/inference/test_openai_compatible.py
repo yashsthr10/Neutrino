@@ -99,3 +99,88 @@ def test_tool_calls_normalized() -> None:
     resp = provider.chat(InferenceRequest(messages=(Message(role="user", content="x"),)))
     assert resp.tool_calls[0].name == "rna.find_symbol"
     assert json.loads(resp.tool_calls[0].arguments)["name"] == "Foo"
+
+
+def test_stream_token_deltas_and_tool_calls() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        body = json.loads(request.content.decode("utf-8"))
+        assert body.get("stream") is True
+        chunks = [
+            {
+                "choices": [
+                    {"delta": {"content": "Hi"}, "finish_reason": None},
+                ]
+            },
+            {
+                "choices": [
+                    {
+                        "delta": {
+                            "tool_calls": [
+                                {
+                                    "index": 0,
+                                    "id": "c1",
+                                    "function": {"name": "rna.read_file", "arguments": ""},
+                                }
+                            ]
+                        },
+                        "finish_reason": None,
+                    }
+                ]
+            },
+            {
+                "choices": [
+                    {
+                        "delta": {
+                            "tool_calls": [
+                                {
+                                    "index": 0,
+                                    "function": {"arguments": '{"path":"a.txt"}'},
+                                }
+                            ]
+                        },
+                        "finish_reason": None,
+                    }
+                ]
+            },
+            {
+                "choices": [{"delta": {}, "finish_reason": "tool_calls"}],
+                "usage": {"prompt_tokens": 5, "completion_tokens": 9},
+            },
+        ]
+        lines = "".join(f"data: {json.dumps(c)}\n\n" for c in chunks) + "data: [DONE]\n\n"
+        return httpx.Response(
+            200,
+            content=lines.encode("utf-8"),
+            headers={"content-type": "text/event-stream"},
+        )
+
+    client = httpx.Client(transport=_transport(handler), base_url="https://openrouter.ai/api/v1")
+    provider = OpenAICompatibleProvider(
+        InferenceProviderConfig(
+            type="native",
+            vendor="openrouter",
+            model="deepseek/deepseek-v4-flash",
+            base_url="https://openrouter.ai/api/v1",
+        ),
+        ResolvedCredentials(
+            provider_id="openrouter",
+            profile="default",
+            kind="api_key",
+            fields={"api_key": "sk-or"},
+            source="cli",
+        ),
+        client=client,
+    )
+    from src.inference.stream_accumulator import accumulate_stream
+
+    resp = accumulate_stream(
+        provider.stream(InferenceRequest(messages=(Message(role="user", content="hi"),)))
+    )
+    assert resp.content == "Hi"
+    assert resp.finish_reason == "tool_calls"
+    assert len(resp.tool_calls) == 1
+    assert resp.tool_calls[0].name == "rna.read_file"
+    assert json.loads(resp.tool_calls[0].arguments)["path"] == "a.txt"
+    assert resp.usage.input_tokens == 5
+    assert resp.usage.output_tokens == 9

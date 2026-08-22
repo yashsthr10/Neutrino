@@ -221,6 +221,49 @@ def test_orchestrator_appends_conversation_memory(repo: Path) -> None:
     assert any("verified" in m.content for m in conversation.messages if m.role == "assistant")
 
 
+def test_orchestrator_followup_turn_keeps_prior_user_task(repo: Path) -> None:
+    """Second submit_task must include the first user/assistant turn in LLM history."""
+    responses = [
+        _final("Created the portfolio landing page."),
+        _final("Continuing: refining the hero section."),
+    ]
+    inference = ScriptedInference(responses)
+    conversation = FakeConversationManager(session_id="sess-followup")
+    engine = build_tool_engine(
+        RuntimeServices(
+            context=FakeContextManager(),
+            conversation=conversation,
+            rna=FakeRna(),
+            execution=ExecutionService(repo),
+            verification=VerificationService(repo, test_command="true", lint_command="true"),
+            repo_path=repo,
+        )
+    )
+    orch = AgentOrchestrator(
+        lambda _e: None,
+        repo,
+        inference=inference,
+        tool_engine=engine,
+        auto_approve=True,
+        session_id="sess-followup",
+    )
+    orch.run_blocking("create a landing page from info.txt")
+    orch.run_blocking("please continue")
+
+    assert len(inference.chat_calls) >= 2
+    second = inference.chat_calls[1].messages
+    user_texts = [
+        (getattr(m, "content", None) or "") for m in second if getattr(m, "role", None) == "user"
+    ]
+    assert any("landing page" in t for t in user_texts)
+    assert any("please continue" in t for t in user_texts)
+    assert any(
+        getattr(m, "role", None) == "assistant"
+        and "portfolio" in (getattr(m, "content", None) or "").lower()
+        for m in second
+    )
+
+
 def test_orchestrator_memory_visible_to_context_resolve(repo: Path, tmp_path: Path) -> None:
     from src.context.config import ContextConfig
     from src.tool_engine import build_tool_engine_from_subsystem

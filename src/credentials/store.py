@@ -7,12 +7,11 @@ import logging
 from pathlib import Path
 from typing import Protocol
 
+from src.config.constants import CREDENTIAL_SERVICE_NAME as SERVICE_NAME
 from src.credentials.errors import CredentialStoreError
 from src.credentials.models import CredentialRecord
 
 logger = logging.getLogger("credentials")
-
-SERVICE_NAME = "neutrino"
 
 
 def storage_username(profile: str, provider_id: str) -> str:

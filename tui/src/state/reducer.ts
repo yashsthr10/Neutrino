@@ -311,8 +311,15 @@ function applyUiEvent(state: RuntimeViewState, event: UiEventEnvelope): RuntimeV
     case "log.line": {
       const level = (String(payload.level ?? "info") as LogLevel) || "info";
       const tone: TranscriptTone =
-        level === "error" ? "error" : level === "warning" ? "warn" : "success";
-      const prefix = level === "error" ? "✗" : level === "warning" ? "!" : "✓";
+        level === "error"
+          ? "error"
+          : level === "warning"
+            ? "warn"
+            : level === "debug"
+              ? "dim"
+              : "success";
+      const prefix =
+        level === "error" ? "✗" : level === "warning" ? "!" : level === "debug" ? "…" : "✓";
       // Skip noisy internal recovery/approval chatter in the main stream
       const message = String(payload.message ?? "");
       if (

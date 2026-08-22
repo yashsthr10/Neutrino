@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import threading
 import uuid
 from collections.abc import Callable
@@ -25,6 +26,11 @@ from src.agent.events import (
 )
 from src.agent.policy import AgentPolicy
 from src.agent.state_model import AgentState
+from src.config.constants import (
+    LOCAL_INFERENCE_HOST_MARKERS,
+    SESSION_HISTORY_MAX_MESSAGES,
+    SESSION_HISTORY_MAX_TOKENS,
+)
 from src.config.schema import CliRules
 from src.context import ConversationManagerPort
 from src.context.runtime.conversation_context import ConversationContext
@@ -35,6 +41,7 @@ from src.context.runtime.planning_context import PlanningContext, PlanTask
 from src.context.runtime.repository_context import RepositoryContext, RepositoryContextItem
 from src.context.runtime.request_context import RequestContext
 from src.context.runtime.verification_context import VerificationContext
+from src.inference.models.request import Message as InferenceMessage
 from src.inference.ports.inference_port import InferencePort
 from src.orchestrator.completion import (
     CompletionDecisionKind,
@@ -62,6 +69,14 @@ from src.tool_engine.engine import ToolEngine
 from src.tool_engine.models import ToolResult
 from src.verification.harness import VerificationPolicy, build_verification_policy
 
+logger = logging.getLogger("neutrino.orchestrator")
+
+
+def _debug_ui_enabled() -> bool:
+    return logger.isEnabledFor(logging.DEBUG) or logging.getLogger("neutrino.agent").isEnabledFor(
+        logging.DEBUG
+    )
+
 
 def _looks_like_local_inference(inference: InferencePort) -> bool:
     config = getattr(inference, "config", None)
@@ -69,7 +84,7 @@ def _looks_like_local_inference(inference: InferencePort) -> bool:
         return False
     base = (config.base_url or "").lower()
     return config.type == "openai-compatible" and any(
-        token in base for token in ("127.0.0.1", "localhost", "0.0.0.0", ":11434")
+        token in base for token in LOCAL_INFERENCE_HOST_MARKERS
     )
 
 
@@ -112,6 +127,7 @@ class AgentOrchestrator:
             "taskComplexity": "SIMPLE",
         }
         self._controller: AgentController | None = None
+        self._session_history: list[InferenceMessage] = []
         self._reasoning_stream_open = False
         self._conversation: ConversationManagerPort | None = getattr(
             tool_engine.services, "conversation", None
@@ -168,6 +184,9 @@ class AgentOrchestrator:
         complexity: Literal["SIMPLE", "MEDIUM", "COMPLEX"] = (
             "SIMPLE" if self._runtime_mode == "fast" else "COMPLEX"
         )
+        prior_code_changes: tuple[dict, ...] = ()
+        if self._ctx is not None and self._ctx.execution.code_changes:
+            prior_code_changes = self._ctx.execution.code_changes
         self._ctx = ExecutionContext(
             request=RequestContext(
                 request_id=uuid.uuid4().hex,
@@ -178,12 +197,17 @@ class AgentOrchestrator:
                 task_complexity=complexity,
                 created_at=now,
             ),
-            execution=ExecutionState(status="RUNNING"),
+            execution=ExecutionState(
+                status="RUNNING",
+                code_changes=prior_code_changes,
+            ),
         )
         self._tracker = CompletionTracker(max_verify_cycles=self._rules.max_verify_cycles)
+        # Soft phase resets per user turn; LLM message history does not.
         self._agent_state = AgentState()
         self._env = probe_environment(self._repo_path).to_dict()
 
+        history = self._build_turn_history(user_query)
         self._append_conversation(
             "user",
             user_query,
@@ -224,6 +248,7 @@ class AgentOrchestrator:
                     context=self._ctx,
                     fsm_state=fsm,
                     user_query=user_query,
+                    messages=history,
                     update_context=self._update_context,
                 )
                 first = False
@@ -236,6 +261,7 @@ class AgentOrchestrator:
 
             self._ctx = result.context
             self._tokens = controller.state.tokens_used
+            self._session_history = _trim_session_history(list(controller.messages))
             if controller.loop.agent_state is not None:
                 self._agent_state = controller.loop.agent_state
             self._status()
@@ -259,6 +285,7 @@ class AgentOrchestrator:
                     update_context=self._update_context,
                 )
                 self._ctx = result.context
+                self._session_history = _trim_session_history(list(controller.messages))
                 if result.status == "CANCELLED":
                     old, new = self._workflow.cancel()
                     self._emit(StateTransition(old, new))
@@ -351,6 +378,43 @@ class AgentOrchestrator:
             if decision.checks_required and self._ctx is not None:
                 # Keep checks_required visible in prompt / reminders.
                 pass
+
+    def _build_turn_history(self, user_query: str) -> list[InferenceMessage]:
+        """Prior turns (in-memory, else conversation store) + this user message."""
+        prior = self._load_prior_history()
+        if prior and prior[-1].role == "user" and (prior[-1].content or "") == user_query:
+            combined = prior
+        else:
+            combined = prior + [InferenceMessage(role="user", content=user_query)]
+        return _trim_session_history(combined)
+
+    def _load_prior_history(self) -> list[InferenceMessage]:
+        if self._session_history:
+            return list(self._session_history)
+        if self._controller is not None and self._controller.messages:
+            return list(self._controller.messages)
+        return self._history_from_conversation()
+
+    def _history_from_conversation(self) -> list[InferenceMessage]:
+        if self._conversation is None:
+            return []
+        try:
+            # Fetch a bit more than the message cap; trim enforces both limits.
+            result = self._conversation.get_recent(
+                n=SESSION_HISTORY_MAX_MESSAGES * 2,
+                roles=("user", "assistant"),
+            )
+        except Exception as exc:  # noqa: BLE001
+            self._emit(LogLine(f"Conversation memory load failed: {exc}", level="warning"))
+            return []
+        out: list[InferenceMessage] = []
+        for msg in result.data or []:
+            role = getattr(msg, "role", None)
+            content = (getattr(msg, "content", None) or "").strip()
+            if role not in {"user", "assistant"} or not content:
+                continue
+            out.append(InferenceMessage(role=role, content=content))
+        return out
 
     def _append_conversation(
         self,
@@ -496,6 +560,13 @@ class AgentOrchestrator:
                     success=True,
                 )
             )
+            if _debug_ui_enabled():
+                self._emit(
+                    LogLine(
+                        f"tool.request {event.name}: {_args_summary(event.arguments)}",
+                        level="debug",
+                    )
+                )
         elif isinstance(event, ToolCallCompleted):
             summary = event.summary
             if event.cost_ms > 0:
@@ -507,6 +578,14 @@ class AgentOrchestrator:
                     success=event.success,
                 )
             )
+            if _debug_ui_enabled():
+                self._emit(
+                    LogLine(
+                        f"tool.result {event.name}: {summary}"
+                        + (f" err={event.error}" if event.error else ""),
+                        level="debug",
+                    )
+                )
         elif isinstance(event, AgentBlocked):
             self._emit(LogLine(f"Blocked: {event.reason}", level="warning"))
         elif isinstance(event, AgentFailed):
@@ -540,11 +619,17 @@ class AgentOrchestrator:
                     (
                         f"Model done {event.latency_ms:.0f}ms "
                         f"(in={event.input_tokens} out={event.output_tokens}, "
-                        f"tools={event.tool_count})"
+                        f"offered={event.tool_count}, calls={event.response_tool_calls}"
+                        f"{f', outcome={event.outcome}' if event.outcome else ''})"
                     ),
                     level="info",
                 )
             )
+            if _debug_ui_enabled():
+                if event.tool_call_preview:
+                    self._emit(LogLine(f"llm.tool_calls: {event.tool_call_preview}", level="debug"))
+                if event.content_preview:
+                    self._emit(LogLine(f"llm.content: {event.content_preview}", level="debug"))
         elif isinstance(event, TimingSummary):
             for line in event.lines:
                 self._emit(LogLine(line, level="info"))
@@ -625,6 +710,69 @@ class AgentOrchestrator:
             self._controller.cancel()
         self._approval_approved = False
         self._approval_event.set()
+
+
+def _estimate_message_tokens(message: InferenceMessage) -> int:
+    """Rough token estimate (~4 chars/token) including tool-call payloads."""
+    parts: list[str] = [message.content or ""]
+    if message.name:
+        parts.append(message.name)
+    if message.tool_call_id:
+        parts.append(message.tool_call_id)
+    for tc in message.tool_calls or ():
+        parts.append(tc.id or "")
+        parts.append(tc.name or "")
+        parts.append(tc.arguments or "")
+    text = "\n".join(parts)
+    return max(1, (len(text) + 3) // 4)
+
+
+def _history_token_count(messages: list[InferenceMessage]) -> int:
+    return sum(_estimate_message_tokens(m) for m in messages)
+
+
+def _trim_session_history(
+    messages: list[InferenceMessage],
+    *,
+    max_messages: int = SESSION_HISTORY_MAX_MESSAGES,
+    max_tokens: int = SESSION_HISTORY_MAX_TOKENS,
+) -> list[InferenceMessage]:
+    """Keep the newest messages; drop from the start when either cap is exceeded.
+
+    Later we can replace this with summarization / retrieval instead of raw drops.
+    """
+    if not messages:
+        return []
+    kept = list(messages)
+    pruned = False
+
+    while len(kept) > max_messages:
+        kept.pop(0)
+        pruned = True
+
+    while len(kept) > 1 and _history_token_count(kept) > max_tokens:
+        kept.pop(0)
+        pruned = True
+
+    # Drop orphan tool results left at the front after a mid-turn cut.
+    while kept and kept[0].role == "tool":
+        kept.pop(0)
+        pruned = True
+
+    if pruned:
+        marker = InferenceMessage(
+            role="user",
+            content="[Earlier conversation pruned for context limits.]",
+        )
+        # Make room for the marker under the message cap.
+        while len(kept) >= max_messages:
+            kept.pop(0)
+        while kept and kept[0].role == "tool":
+            kept.pop(0)
+        candidate = [marker] + kept
+        if _history_token_count(candidate) <= max_tokens:
+            kept = candidate
+    return kept
 
 
 def _fold_context_package(ctx: ExecutionContext, data: Any) -> ExecutionContext:

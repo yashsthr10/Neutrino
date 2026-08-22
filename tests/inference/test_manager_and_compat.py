@@ -60,3 +60,27 @@ def test_langchain_unsupported_vendor() -> None:
     )
     with pytest.raises(UnsupportedCapability):
         bad.connect()
+
+
+def test_factory_routes_openrouter_to_openai_compatible_streamer() -> None:
+    from src.credentials.models import ResolvedCredentials
+    from src.inference.factory import create_provider
+    from src.inference.providers.openai_compatible import OpenAICompatibleProvider
+
+    provider = create_provider(
+        InferenceProviderConfig(
+            type="native",
+            vendor="openrouter",
+            model="deepseek/deepseek-v4-flash",
+            base_url="http://127.0.0.1:11434/v1",
+        ),
+        ResolvedCredentials(
+            provider_id="openrouter",
+            profile="default",
+            kind="api_key",
+            fields={"api_key": "sk-or"},
+            source="cli",
+        ),
+    )
+    assert isinstance(provider, OpenAICompatibleProvider)
+    assert provider._base_url == "https://openrouter.ai/api/v1"

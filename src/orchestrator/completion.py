@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
+from src.config.constants import DEFAULT_MAX_VERIFY_CYCLES
 from src.context.runtime.execution_context import ExecutionContext
 from src.verification.harness import VerificationPolicy, build_verification_policy
 
@@ -29,7 +30,7 @@ class CompletionDecision:
 class CompletionTracker:
     """Tracks verify/repair cycles for a single agent run."""
 
-    max_verify_cycles: int = 2
+    max_verify_cycles: int = DEFAULT_MAX_VERIFY_CYCLES
     verify_cycles: int = 0
     tests_succeeded: bool = False
     lint_succeeded: bool = False

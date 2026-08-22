@@ -70,3 +70,52 @@ def test_controller_keeps_tool_history_across_continues(tmp_path) -> None:
     assert len(inference.chat_calls) >= 3
     last_msgs = inference.chat_calls[-1].messages
     assert any(getattr(m, "role", None) == "tool" for m in last_msgs)
+
+
+def test_controller_run_accepts_seeded_history(tmp_path) -> None:
+    from src.inference.models.request import Message
+
+    inference = ScriptedInference([_final("continuing prior work")])
+    engine = build_tool_engine(RuntimeServices(rna=FakeRna(), repo_path=tmp_path))
+    controller = AgentController(
+        inference=inference,
+        tool_engine=engine,
+        policy=AgentPolicy(max_iterations=5),
+    )
+    ctx = ExecutionContext(
+        request=RequestContext(
+            request_id="r2",
+            session_id="s1",
+            user_query="please continue",
+            repo_path=str(tmp_path),
+            requesting_agent="coder",
+            task_complexity="SIMPLE",
+            created_at="2026-01-01T00:00:00Z",
+        )
+    )
+    seeded = [
+        Message(role="user", content="create a landing page from info.txt"),
+        Message(role="assistant", content="I created index.html"),
+        Message(role="user", content="please continue"),
+    ]
+    result = controller.run(
+        context=ctx,
+        fsm_state="AGENT",
+        user_query="please continue",
+        messages=seeded,
+    )
+    assert result.status == "COMPLETED"
+    assert controller.messages[0].content == "create a landing page from info.txt"
+    assert controller.messages[-2].content == "please continue" or any(
+        m.content == "please continue" for m in controller.messages if m.role == "user"
+    )
+    sent = inference.chat_calls[0].messages
+    assert any(
+        getattr(m, "role", None) == "user" and "landing page" in (getattr(m, "content", None) or "")
+        for m in sent
+    )
+    assert any(
+        getattr(m, "role", None) == "user"
+        and "please continue" in (getattr(m, "content", None) or "")
+        for m in sent
+    )

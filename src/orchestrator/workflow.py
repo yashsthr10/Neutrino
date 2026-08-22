@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from src.config.constants import DEFAULT_MAX_VERIFY_CYCLES
+
 
 @dataclass
 class WorkflowFlags:
@@ -24,7 +26,7 @@ class WorkflowController:
 
     fsm_state: str = "INIT"
     flags: WorkflowFlags = field(default_factory=WorkflowFlags)
-    max_verify_cycles: int = 2
+    max_verify_cycles: int = DEFAULT_MAX_VERIFY_CYCLES
 
     def start(self) -> tuple[str, str]:
         old = self.fsm_state

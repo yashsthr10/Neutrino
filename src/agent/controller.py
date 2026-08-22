@@ -69,10 +69,17 @@ class AgentController:
         fsm_state: str,
         user_query: str | None = None,
         update_context: ContextUpdater | None = None,
+        messages: list[Message] | None = None,
     ) -> AgentResult:
-        if not self._messages:
+        if messages is not None:
+            self._messages = list(messages)
+        elif not self._messages:
             query = user_query or context.request.user_query
             self._messages = [Message(role="user", content=query)]
+        elif user_query:
+            last = self._messages[-1]
+            if not (last.role == "user" and (last.content or "") == user_query):
+                self._messages.append(Message(role="user", content=user_query))
         self._state = AgentLoopState()
         self._loop.timing.reset()
         result = self._loop.run(

@@ -8,6 +8,16 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from src.config.constants import (
+    DEFAULT_INFERENCE_TEMPERATURE,
+    DEFAULT_INFERENCE_TIMEOUT_S,
+    DEFAULT_MAX_ITERATIONS,
+    DEFAULT_MAX_VERIFY_CYCLES,
+    DEFAULT_TOKEN_BUDGET,
+    OLLAMA_DEFAULT_BASE_URL,
+    OLLAMA_DEFAULT_HOST,
+)
+
 ProviderType = Literal["openai-compatible", "native"]
 NativeVendor = Literal[
     "openai",
@@ -30,10 +40,10 @@ class InferenceProviderConfig(BaseModel):
     type: ProviderType = "openai-compatible"
     vendor: str | None = None
     model: str = "llama3.2"
-    base_url: str | None = "http://127.0.0.1:11434/v1"
-    temperature: float = Field(default=0.2, ge=0.0, le=2.0)
+    base_url: str | None = OLLAMA_DEFAULT_BASE_URL
+    temperature: float = Field(default=DEFAULT_INFERENCE_TEMPERATURE, ge=0.0, le=2.0)
     max_tokens: int | None = None
-    timeout_s: float = Field(default=60.0, gt=0)
+    timeout_s: float = Field(default=DEFAULT_INFERENCE_TIMEOUT_S, gt=0)
     credential: str = "default"
     # Vendor extras (non-secret)
     api_version: str | None = None
@@ -94,8 +104,8 @@ class ModelConfig(BaseModel):
 
     provider: LegacyProviderKind = "ollama"
     name: str = "llama3.2"
-    ollama_base_url: str = "http://127.0.0.1:11434"
-    temperature: float = Field(default=0.2, ge=0.0, le=2.0)
+    ollama_base_url: str = OLLAMA_DEFAULT_HOST
+    temperature: float = Field(default=DEFAULT_INFERENCE_TEMPERATURE, ge=0.0, le=2.0)
 
     def to_inference(self) -> InferenceProviderConfig:
         if self.provider == "ollama":
@@ -134,10 +144,10 @@ class ProfileConfig(BaseModel):
 class CliRules(BaseModel):
     verbose: bool = False
     dry_run: bool = False
-    max_iterations: int = Field(default=25, ge=1, le=10_000)
-    token_budget: int = Field(default=100_000, ge=1)
+    max_iterations: int = Field(default=DEFAULT_MAX_ITERATIONS, ge=1, le=10_000)
+    token_budget: int = Field(default=DEFAULT_TOKEN_BUDGET, ge=1)
     max_verify_cycles: int = Field(
-        default=2,
+        default=DEFAULT_MAX_VERIFY_CYCLES,
         ge=0,
         le=20,
         description="Bounded VERIFY -> EXECUTE retries when tests fail before hard-stopping.",

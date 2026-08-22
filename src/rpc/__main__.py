@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import argparse
-import logging
 import sys
 from pathlib import Path
 
+from src.logging_config import configure_logging, resolve_log_level
 from src.rpc.framing import NdjsonWriter
 from src.rpc.server import build_server
 
@@ -33,17 +33,22 @@ def main(argv: list[str] | None = None) -> None:
         "-v",
         "--verbose",
         action="store_true",
-        help="Verbose logging to stderr.",
+        help="Alias for --log-level debug (stderr).",
+    )
+    parser.add_argument(
+        "--log-level",
+        choices=("debug", "info", "warning", "error"),
+        default=None,
+        help="Python runtime log level on stderr (default: warning, or NEUTRINO_LOG_LEVEL).",
     )
     args = parser.parse_args(argv)
 
-    logging.basicConfig(
-        level=logging.DEBUG if args.verbose else logging.WARNING,
-        stream=sys.stderr,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    repo = (args.repo or Path.cwd()).resolve()
+    configure_logging(
+        resolve_log_level(cli_level=args.log_level, verbose=args.verbose),
+        log_file=(repo / "logs.txt"),
     )
 
-    repo = (args.repo or Path.cwd()).resolve()
     writer = NdjsonWriter(sys.stdout)
     server = build_server(
         repo,

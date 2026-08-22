@@ -61,6 +61,7 @@ Thumbs.db
 
 # Local tooling
 *.log
+logs.txt
 
 # Node / Ink TUI
 tui/node_modules/

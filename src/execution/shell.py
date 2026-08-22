@@ -5,9 +5,8 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+from src.config.constants import SHELL_MAX_OUTPUT_CHARS
 from src.execution.models import ShellResult
-
-_MAX_OUTPUT_CHARS = 32_000
 
 
 def run_shell(
@@ -53,7 +52,7 @@ def run_shell(
             exit_code=-1,
             stdout=_truncate(out),
             stderr=_truncate(err or f"Command timed out after {timeout_s}s"),
-            truncated=len(out) > _MAX_OUTPUT_CHARS or len(err) > _MAX_OUTPUT_CHARS,
+            truncated=len(out) > SHELL_MAX_OUTPUT_CHARS or len(err) > SHELL_MAX_OUTPUT_CHARS,
         )
     except OSError as exc:
         return ShellResult(
@@ -66,7 +65,7 @@ def run_shell(
 
     stdout = proc.stdout or ""
     stderr = proc.stderr or ""
-    truncated = len(stdout) > _MAX_OUTPUT_CHARS or len(stderr) > _MAX_OUTPUT_CHARS
+    truncated = len(stdout) > SHELL_MAX_OUTPUT_CHARS or len(stderr) > SHELL_MAX_OUTPUT_CHARS
     return ShellResult(
         success=proc.returncode == 0,
         command=command,
@@ -78,6 +77,6 @@ def run_shell(
 
 
 def _truncate(text: str) -> str:
-    if len(text) <= _MAX_OUTPUT_CHARS:
+    if len(text) <= SHELL_MAX_OUTPUT_CHARS:
         return text
-    return text[:_MAX_OUTPUT_CHARS] + "\n...[truncated]...\n"
+    return text[:SHELL_MAX_OUTPUT_CHARS] + "\n...[truncated]...\n"

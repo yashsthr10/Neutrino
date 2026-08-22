@@ -128,7 +128,7 @@ chat_model = InferenceChatModelAdapter(mgr)
 | `vendor=bedrock` | ChatBedrockConverse | `region` + AWS keys **or** `aws_profile` |
 | `vendor=google_genai` | ChatGoogleGenerativeAI | `GOOGLE_API_KEY` / `GEMINI_API_KEY` |
 | `vendor=groq` | ChatGroq | `GROQ_API_KEY` |
-| `vendor=openrouter` | ChatOpenAI + OpenRouter base URL | `OPENROUTER_API_KEY` |
+| `vendor=openrouter` | OpenAI-compatible HTTP (SSE streaming) | `OPENROUTER_API_KEY` |
 
 Test doubles: `tests/doubles/inference.py` (`FakeInferenceProvider`, etc.) — not a production provider.
 
