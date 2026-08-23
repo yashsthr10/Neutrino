@@ -161,6 +161,12 @@ CATALOG_MODEL_LABELS: dict[str, str] = {
 # FSM states where ToolSpecs are exposed (excludes INIT / DONE / CANCELLED).
 TOOL_AVAILABLE_STATES = frozenset({"AGENT", "PLAN", "CONTEXT", "EXECUTE", "VERIFY", "REVIEW"})
 
+# Agent history microcompact — keep this many recent tool results verbatim.
+MICROCOMPACT_KEEP_RECENT = 4
+
+# Project rules injected into L3 dynamic prompt.
+PROJECT_RULES_MAX_CHARS = 8_192
+
 TOOL_MAX_STRING_LEN = 16_384
 TOOL_MAX_LIST_LEN = 256
 EXECUTOR_APPLY_PATCH_MAX_LENGTH = 512_000

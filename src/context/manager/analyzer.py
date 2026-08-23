@@ -65,8 +65,11 @@ class RequirementAnalyzer:
                 if scope == ".":
                     scope = hints[0]
                 calls.append(("get_hld", {"scope": scope}))
+                calls.append(("get_lld", {"scope": scope}))
             if symbols:
                 calls.append(("get_workflow", {"entrypoint": symbols[0]}))
+        elif complexity == "MEDIUM" and len(hints) == 1:
+            calls.append(("get_lld", {"scope": hints[0]}))
         return calls
 
     def _coder_calls(

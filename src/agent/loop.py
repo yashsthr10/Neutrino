@@ -21,10 +21,12 @@ from src.agent.events import (
     ModelCompleted,
     ModelInvoked,
     ModelStreamDelta,
+    ModelToolIntent,
     TimingSummary,
     ToolCallCompleted,
     ToolCallRequested,
 )
+from src.agent.history_compact import compact_tool_history
 from src.agent.policy import AgentPolicy
 from src.agent.prompts.compiler import (
     PromptInputs,
@@ -44,6 +46,7 @@ from src.agent.tool_call_repair import (
 from src.context.runtime.execution_context import ExecutionContext
 from src.inference.adapters.tool_adapter import tool_engine_schemas_to_specs
 from src.inference.errors import ToolUseFailed
+from src.inference.prompt_cache import prompt_cache_enabled, split_system_for_cache
 from src.inference.models.request import InferenceRequest, Message, ToolCall
 from src.inference.ports.inference_port import InferencePort
 from src.inference.stream_accumulator import StreamChannel, accumulate_stream
@@ -72,6 +75,9 @@ class AgentLoop:
     reminder_facts: ReminderFacts | None = None
     pending_nudge: str | None = None
     timing: TimingStats = field(default_factory=TimingStats)
+    plan_mode: bool = False
+    harness: dict[str, Any] | None = None
+    project_rules: str | None = None
 
     def run(
         self,
@@ -110,13 +116,23 @@ class AgentLoop:
             self.reminder_facts.tokens_used = loop_state.tokens_used
             self.reminder_facts.checks_required = ctx.verification.checks_required
             self.reminder_facts.same_tool_streak = int(loop_state.same_tool_streak[1] or 0)
+            self.reminder_facts.task_complexity = ctx.request.task_complexity
+            self.reminder_facts.agent_phase = self.agent_state.phase if self.agent_state else None
+            self.reminder_facts.has_plan_tasks = bool(ctx.planning.tasks)
+            self.reminder_facts.plan_mode = self.plan_mode
 
             schemas = self.tool_engine.schemas_for_state(fsm_state)
             tools = tool_engine_schemas_to_specs(schemas)
+            prepared = tuple(self._with_system(history, fsm_state, ctx))
+            metadata: dict[str, Any] = {}
+            if prompt_cache_enabled() and prepared and prepared[0].role == "system":
+                static, dynamic = split_system_for_cache(prepared[0].content or "")
+                metadata["prompt_cache"] = {"static": static, "dynamic": dynamic}
             request = InferenceRequest(
-                messages=tuple(self._with_system(history, fsm_state, ctx)),
+                messages=prepared,
                 tools=tools,
                 tool_choice="auto" if tools else None,
+                metadata=metadata,
             )
             self._emit(ModelInvoked(loop_state.iteration, len(tools)))
 
@@ -124,6 +140,21 @@ class AgentLoop:
                 t0 = time.perf_counter()
 
                 def _on_stream_delta(channel: StreamChannel, text: str) -> None:
+                    if channel == "content" and '"name"' in text and self.on_event:
+                        # Best-effort tool intent from partial JSON in stream.
+                        for token in ('"name": "', '"name":"'):
+                            if token in text:
+                                fragment = text.split(token, 1)[-1]
+                                name = fragment.split('"', 1)[0].strip()
+                                if name and "." in name:
+                                    self._emit(
+                                        ModelToolIntent(
+                                            iteration=loop_state.iteration,
+                                            tool_name=name,
+                                            fsm_state=fsm_state,
+                                        )
+                                    )
+                                break
                     self._emit(
                         ModelStreamDelta(
                             channel=channel,
@@ -673,15 +704,19 @@ class AgentLoop:
                 repository_items=repo_items,
                 checks_required=ctx.verification.checks_required,
                 policy_reason=ctx.verification.policy_reason,
-                harness=ctx.verification.harness,
+                harness=self.harness or ctx.verification.harness,
                 test_results=ctx.verification.test_results,
                 reminders=reminders,
+                tools_called=tuple(self.reminder_facts.tools_called) if self.reminder_facts else (),
+                plan_mode=self.plan_mode,
+                project_rules=self.project_rules,
             )
         )
         body = list(history)
         # System is request-local: never persist into controller history.
         if body and body[0].role == "system":
             body = body[1:]
+        body = compact_tool_history(body)
         out: list[Message] = [Message(role="system", content=compiled.system), *body]
         reminder_msg = format_reminders_message(compiled.reminders)
         if reminder_msg:

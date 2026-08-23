@@ -32,7 +32,7 @@ class Ranker:
     def _score(self, item: RepositoryContextItem, request: ContextRequest) -> float:
         cfg = self.config
         hint = self._hint_match(item, request)
-        conf = self._confidence(item)
+        conf = self._confidence(item, request)
         recency = 0.5  # no git signal in v1; neutral
         relation = self._relation(item)
         distance = self._distance(item, request)
@@ -57,11 +57,11 @@ class Ranker:
                     return 0.8
         return 0.0
 
-    def _confidence(self, item: RepositoryContextItem) -> float:
+    def _confidence(self, item: RepositoryContextItem, request: ContextRequest) -> float:
         # Aggregator does not currently carry RNA confidence on items;
         # prefer precise source methods as a proxy.
-        if item.source_method in ("get_symbol", "get_callers", "get_lld"):
-            return 0.8
+        if item.source_method in ("get_symbol", "get_callers", "get_lld", "get_hld"):
+            return 0.9 if request.task_complexity == "COMPLEX" else 0.8
         if item.source_method in ("get_file", "get_tests"):
             return 0.7
         return 0.5

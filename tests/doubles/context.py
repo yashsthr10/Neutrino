@@ -171,6 +171,10 @@ class FakeContextManager:
         pkg = self.packages.get(request.task_description) or self.default_package
         if pkg is None:
             pkg = self._empty_package(request)
+        else:
+            from dataclasses import replace
+
+            pkg = replace(pkg, request=request)
         return ContextResult(
             data=pkg,
             meta=ContextMeta(

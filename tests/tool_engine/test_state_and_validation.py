@@ -85,3 +85,10 @@ def test_executor_apply_accepts_large_patch(engine: ToolEngine) -> None:
     assert result.meta.error != "validation_error"
     assert "exceeds max length" not in (result.meta.error or "")
     assert "exceeds max length" not in " ".join(result.errors or [])
+
+
+def test_schemas_sorted_by_name(engine: ToolEngine) -> None:
+    schemas = engine.schemas_for_state("AGENT")
+    names = [s["name"] for s in schemas]
+    assert names == sorted(names)
+    assert len(names) >= 25

@@ -34,6 +34,7 @@ class ToolSpec:
     when_to_use: str = ""
     when_not_to_use: str = ""
     pairs_with: tuple[str, ...] = ()
+    deferred: bool = False
 
 
 @dataclass(frozen=True, slots=True)

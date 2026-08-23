@@ -60,7 +60,20 @@ def test_planner_complex(analyzer: RequirementAnalyzer) -> None:
     )
     methods = set(_methods(plan))
     assert "get_hld" in methods
+    assert "get_lld" in methods
     assert "get_workflow" in methods
+
+
+def test_planner_medium_single_file_gets_lld(analyzer: RequirementAnalyzer) -> None:
+    plan = analyzer.analyze(
+        ContextRequest(
+            task_description="edit parser",
+            task_complexity="MEDIUM",
+            requesting_agent="planner",
+            file_hints=("pkg/parser.py",),
+        )
+    )
+    assert "get_lld" in _methods(plan)
 
 
 def test_verifier(analyzer: RequirementAnalyzer) -> None:

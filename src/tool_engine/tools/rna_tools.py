@@ -39,6 +39,13 @@ def rna_tool_specs() -> list[ToolSpec]:
             parameters=(
                 ToolParam("entrypoint", "string", True, "Entrypoint symbol or path"),
                 ToolParam("max_depth", "integer", False, "Max traversal depth", 4),
+                ToolParam(
+                    "format",
+                    "string",
+                    False,
+                    "json | mermaid (default json)",
+                    "json",
+                ),
             ),
         ),
         ToolSpec(

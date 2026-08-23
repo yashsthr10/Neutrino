@@ -25,6 +25,9 @@ class RuntimeServices:
     git: GitService | None = None
     verification: VerificationPort | None = None
     repo_path: Path | None = None
+    engine: Any | None = None
+    inference: Any | None = None
+    execution_context: Any | None = None
 
 
 def stub_result(tool_name: str, serializer: ResultSerializer | None = None) -> ToolResult:

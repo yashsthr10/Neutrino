@@ -28,8 +28,21 @@ class RnaCapability(CapabilityBase):
         result = self.require_rna().get_symbol(name, file_hint=file_hint)
         return self.serializer.serialize(result)
 
-    def trace_workflow(self, *, entrypoint: str, max_depth: int = 4) -> ToolResult:
-        result = self.require_rna().get_workflow(entrypoint, max_depth=max_depth)
+    def trace_workflow(
+        self,
+        *,
+        entrypoint: str,
+        max_depth: int = 4,
+        format: str = "json",
+    ) -> ToolResult:
+        fmt, fmt_err = _parse_diagram_format(format)
+        if fmt_err:
+            return self.serializer.from_exception(fmt_err, error_code="validation_error")
+        result = self.require_rna().get_workflow(
+            entrypoint,
+            max_depth=max_depth,
+            format=fmt,  # type: ignore[arg-type]
+        )
         return self.serializer.serialize(result)
 
     def find_tests(self, *, target: str) -> ToolResult:

@@ -48,6 +48,7 @@ class ResultSerializer:
                 truncated = truncated or raw.data.truncated
         elif isinstance(raw, RnaResult):
             data = raw.to_dict()
+            data = _truncate_diagram_payload(data)
             truncated = bool(raw.meta.truncated)
             degraded = bool(raw.meta.degraded)
             reason = raw.meta.reason
@@ -150,6 +151,23 @@ class ResultSerializer:
                 ),
             },
         }
+
+
+def _truncate_diagram_payload(data: Any, *, max_nodes: int = 120) -> Any:
+    if not isinstance(data, dict):
+        return data
+    inner = data.get("data")
+    if not isinstance(inner, dict):
+        return data
+    for key in ("nodes", "edges", "steps"):
+        val = inner.get(key)
+        if isinstance(val, list) and len(val) > max_nodes:
+            inner = dict(inner)
+            inner[key] = val[:max_nodes]
+            inner["truncated"] = True
+            data = dict(data)
+            data["data"] = inner
+    return data
 
 
 def _to_jsonable(value: Any) -> Any:

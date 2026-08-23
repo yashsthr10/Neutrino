@@ -81,7 +81,13 @@ class DesignRecovery:
         self.symbol_index = symbol_index
         self.max_depth_hard = max_depth
 
-    def get_workflow(self, entrypoint: str, *, max_depth: int = 4) -> WorkflowTrace:
+    def get_workflow(
+        self,
+        entrypoint: str,
+        *,
+        max_depth: int = 4,
+        format: Literal["json", "mermaid"] = "json",
+    ) -> WorkflowTrace:
         depth_cap = min(max_depth, self.max_depth_hard)
         file_hint = None
         symbol = entrypoint
@@ -143,10 +149,20 @@ class DesignRecovery:
                     )
                 )
                 queue.append((nxt, depth + 1))
+        mermaid = None
+        if format == "mermaid" and len(steps) > 1:
+            edges: list[tuple[str, str, int | str]] = []
+            prev_id = f"{steps[0].symbol.file}:{steps[0].symbol.name}"
+            for step in steps[1:]:
+                nid = f"{step.symbol.file}:{step.symbol.name}"
+                edges.append((prev_id, nid, step.depth))
+                prev_id = nid
+            mermaid = _format_mermaid_flowchart(edges, max_edges=200)
         return WorkflowTrace(
             entrypoint=entrypoint,
             steps=tuple(steps),
             truncated_by_depth=truncated,
+            mermaid=mermaid,
         )
 
     def get_hld(
@@ -269,9 +285,15 @@ class DesignRecovery:
         if structural is not None:
             files = self.tree.list_files()
             scope_n = scope.rstrip("/")
-            scoped = [f for f in files if f == scope_n or f.startswith(scope_n + "/") or f == scope]
-            if (self.registry.repo_root / scope).is_file():
+            scope_path = self.registry.repo_root / scope
+            if scope_path.is_dir():
+                scoped = [f for f in files if f == scope_n or f.startswith(scope_n + "/")]
+            elif scope_path.is_file():
                 scoped = [scope]
+            else:
+                scoped = [
+                    f for f in files if f == scope_n or f.startswith(scope_n + "/") or f == scope
+                ]
             for f in scoped:
                 if detect_language(f) != lang:
                     continue

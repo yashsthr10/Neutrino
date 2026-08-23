@@ -1,6 +1,8 @@
 """Capability package exports."""
 
+from src.tool_engine.capabilities.agent_task_capability import AgentTaskCapability
 from src.tool_engine.capabilities.base import RuntimeServices
+from src.tool_engine.capabilities.capabilities_capability import CapabilitiesCapability
 from src.tool_engine.capabilities.context_capability import ContextCapability
 from src.tool_engine.capabilities.execution_capability import ExecutionCapability
 from src.tool_engine.capabilities.git_capability import GitCapability
@@ -12,6 +14,8 @@ from src.tool_engine.capabilities.verification_capability import VerificationCap
 
 __all__ = [
     "RuntimeServices",
+    "AgentTaskCapability",
+    "CapabilitiesCapability",
     "ContextCapability",
     "RnaCapability",
     "ResearchCapability",

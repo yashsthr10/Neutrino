@@ -19,12 +19,22 @@ def enrich_tool_description(spec: ToolSpec) -> str:
     return "\n".join(parts)
 
 
-def tool_spec_to_json_schema(spec: ToolSpec) -> dict[str, Any]:
-    """OpenAI/Anthropic/Gemini-style function schema for one tool.
-
-    Gemini requires array properties to declare ``items``; bare
-    ``{"type": "array"}`` is rejected with INVALID_ARGUMENT.
-    """
+def tool_spec_to_json_schema(spec: ToolSpec, *, stub: bool = False) -> dict[str, Any]:
+    """OpenAI/Anthropic/Gemini-style function schema for one tool."""
+    if stub:
+        return {
+            "name": spec.name,
+            "description": (
+                f"{spec.description.strip()} "
+                "(Deferred — call capabilities.describe with this name for full schema.)"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": False,
+            },
+        }
     properties: dict[str, Any] = {}
     required: list[str] = []
     for p in spec.parameters:
@@ -55,5 +65,13 @@ def tool_spec_to_json_schema(spec: ToolSpec) -> dict[str, Any]:
     }
 
 
-def specs_to_schemas(specs: list[ToolSpec]) -> list[dict[str, Any]]:
-    return [tool_spec_to_json_schema(s) for s in specs]
+def specs_to_schemas(
+    specs: list[ToolSpec],
+    *,
+    expanded_deferred: frozenset[str] | set[str] = frozenset(),
+) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for spec in specs:
+        stub = spec.deferred and spec.name not in expanded_deferred
+        out.append(tool_spec_to_json_schema(spec, stub=stub))
+    return out

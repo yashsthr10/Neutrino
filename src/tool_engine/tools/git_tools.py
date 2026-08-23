@@ -25,6 +25,7 @@ def git_tool_specs() -> list[ToolSpec]:
             category="git",
             handler_key="git.undo",
             states=TOOL_AVAILABLE_STATES,
+            deferred=True,
             when_to_use="User asked to undo the last commit; keep it rare.",
             when_not_to_use="Destructive history rewrite beyond mixed reset.",
             pairs_with=("git.diff", "git.commit"),

@@ -96,9 +96,30 @@ class LangChainProvider:
             ) from exc
 
         lc_messages: list[Any] = []
+        cache_meta = request.metadata.get("prompt_cache") if request.metadata else None
+        system_handled = False
         for m in request.messages:
             if m.role == "system":
-                lc_messages.append(SystemMessage(content=m.content or ""))
+                if cache_meta and self._vendor == "anthropic" and not system_handled:
+                    static = str(cache_meta.get("static") or m.content or "")
+                    dynamic = str(cache_meta.get("dynamic") or "")
+                    blocks: list[dict[str, Any]] = []
+                    if static:
+                        blocks.append(
+                            {
+                                "type": "text",
+                                "text": static,
+                                "cache_control": {"type": "ephemeral"},
+                            }
+                        )
+                    if dynamic:
+                        blocks.append({"type": "text", "text": dynamic})
+                    elif not static:
+                        blocks.append({"type": "text", "text": m.content or ""})
+                    lc_messages.append(SystemMessage(content=blocks))
+                    system_handled = True
+                else:
+                    lc_messages.append(SystemMessage(content=m.content or ""))
             elif m.role == "assistant":
                 if m.tool_calls:
                     lc_tool_calls = []

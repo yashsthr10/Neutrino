@@ -9,6 +9,7 @@ from src.agent.prompts.layers.agent_state import render_agent_state
 from src.agent.prompts.layers.capabilities import render_capabilities
 from src.agent.prompts.layers.core import L1_CORE, L1_RESPONSE_CONTRACT
 from src.agent.prompts.layers.environment import render_environment
+from src.agent.prompts.layers.harness import render_harness
 from src.agent.prompts.layers.task_context import render_task_context
 from src.agent.state_model import AgentState
 
@@ -33,6 +34,9 @@ class PromptInputs:
     harness: dict[str, Any] | None = None
     test_results: dict[str, Any] | None = None
     reminders: tuple[str, ...] = ()
+    tools_called: tuple[str, ...] = ()
+    plan_mode: bool = False
+    project_rules: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,18 +47,33 @@ class CompiledPrompt:
 
 def compile_system_prompt(inputs: PromptInputs) -> CompiledPrompt:
     """Assemble L1+L2 (static-ish) + boundary + L3+L4+L5."""
-    static = "\n".join(
+    agent_phase = getattr(inputs.agent_state, "phase", None) if inputs.agent_state else None
+    harness_block = render_harness(inputs.harness).strip()
+    static_parts = [L1_CORE.strip()]
+    if harness_block:
+        static_parts.extend(["", harness_block])
+    static_parts.extend(
         [
-            L1_CORE.strip(),
             "",
-            render_capabilities(list(inputs.tools)).strip(),
+            render_capabilities(
+                list(inputs.tools),
+                user_query=inputs.user_query,
+                task_complexity=inputs.task_complexity,
+                agent_phase=str(agent_phase) if agent_phase else None,
+                tools_called=inputs.tools_called,
+                plan_mode=inputs.plan_mode,
+            ).strip(),
             "",
             L1_RESPONSE_CONTRACT.strip(),
         ]
     )
+    static = "\n".join(static_parts)
+    env_block = render_environment(inputs.environment).strip()
+    if inputs.project_rules and inputs.project_rules.strip():
+        env_block = env_block + "\n\n## PROJECT RULES\n\n" + inputs.project_rules.strip()
     dynamic = "\n".join(
         [
-            render_environment(inputs.environment).strip(),
+            env_block,
             "",
             render_task_context(
                 user_query=inputs.user_query,

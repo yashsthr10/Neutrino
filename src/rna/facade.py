@@ -304,10 +304,18 @@ class Rna:
                 ),
             )
 
-    def get_workflow(self, entrypoint: str, *, max_depth: int = 4) -> RnaResult[WorkflowTrace]:
+    def get_workflow(
+        self,
+        entrypoint: str,
+        *,
+        max_depth: int = 4,
+        format: Literal["json", "mermaid"] = "json",
+    ) -> RnaResult[WorkflowTrace]:
         with timed_call("get_workflow", f"entrypoint={entrypoint}"):
             t0 = time.perf_counter()
-            trace = self._ensure_design().get_workflow(entrypoint, max_depth=max_depth)
+            trace = self._ensure_design().get_workflow(
+                entrypoint, max_depth=max_depth, format=format
+            )
             cost = (time.perf_counter() - t0) * 1000
             return RnaResult(
                 data=trace,

@@ -12,7 +12,8 @@ def context_tool_specs() -> list[ToolSpec]:
             name="context.resolve",
             description=(
                 "Build a bounded context package for the current task. "
-                "Requires task_description (string)."
+                "Requires task_description (string). Retrieval depth follows the "
+                "user-selected runtime mode (injected by host — do not guess tier)."
             ),
             category="context",
             handler_key="context.resolve",
@@ -22,14 +23,6 @@ def context_tool_specs() -> list[ToolSpec]:
             pairs_with=("context.expand", "rna.read_file", "rna.find_symbol"),
             parameters=(
                 ToolParam("task_description", "string", True, "User task / goal"),
-                ToolParam("task_complexity", "string", False, "SIMPLE|MEDIUM|COMPLEX", "MEDIUM"),
-                ToolParam(
-                    "requesting_agent",
-                    "string",
-                    False,
-                    "planner|coder|verifier|reviewer",
-                    "planner",
-                ),
                 ToolParam("file_hints", "array", False, "Optional file path hints"),
                 ToolParam("symbol_hints", "array", False, "Optional symbol name hints"),
                 ToolParam("conversation_query", "string", False, "Optional memory query"),
@@ -48,14 +41,6 @@ def context_tool_specs() -> list[ToolSpec]:
             pairs_with=("context.resolve",),
             parameters=(
                 ToolParam("task_description", "string", True, "Additional retrieval goal"),
-                ToolParam("task_complexity", "string", False, "SIMPLE|MEDIUM|COMPLEX", "MEDIUM"),
-                ToolParam(
-                    "requesting_agent",
-                    "string",
-                    False,
-                    "planner|coder|verifier|reviewer",
-                    "planner",
-                ),
                 ToolParam("file_hints", "array", False, "Optional file path hints"),
                 ToolParam("symbol_hints", "array", False, "Optional symbol name hints"),
                 ToolParam("token_budget", "integer", False, "Optional token budget"),
@@ -74,14 +59,6 @@ def context_tool_specs() -> list[ToolSpec]:
             pairs_with=("context.resolve", "executor.apply"),
             parameters=(
                 ToolParam("task_description", "string", False, "Task description for re-resolve"),
-                ToolParam("task_complexity", "string", False, "SIMPLE|MEDIUM|COMPLEX", "MEDIUM"),
-                ToolParam(
-                    "requesting_agent",
-                    "string",
-                    False,
-                    "planner|coder|verifier|reviewer",
-                    "planner",
-                ),
                 ToolParam("file_hints", "array", False, "Optional file path hints"),
                 ToolParam("symbol_hints", "array", False, "Optional symbol name hints"),
                 ToolParam("session_id", "string", False, "Optional session id"),

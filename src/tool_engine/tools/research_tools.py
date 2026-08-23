@@ -28,6 +28,7 @@ def research_tool_specs() -> list[ToolSpec]:
             category="research",
             handler_key="research.docs",
             states=TOOL_AVAILABLE_STATES,
+            deferred=True,
             when_to_use="Project documentation index when available.",
             when_not_to_use="Use rna.search / read_file for in-repo docs today.",
             pairs_with=("research.web", "rna.search"),

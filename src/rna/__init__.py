@@ -51,7 +51,13 @@ class RnaPort(Protocol):
 
     def get_tests(self, target: str) -> RnaResult[list[TestLink]]: ...
 
-    def get_workflow(self, entrypoint: str, *, max_depth: int = 4) -> RnaResult[WorkflowTrace]: ...
+    def get_workflow(
+        self,
+        entrypoint: str,
+        *,
+        max_depth: int = 4,
+        format: Literal["json", "mermaid"] = "json",
+    ) -> RnaResult[WorkflowTrace]: ...
 
     def get_hld(
         self,

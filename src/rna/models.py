@@ -106,6 +106,7 @@ class WorkflowTrace:
     entrypoint: str
     steps: tuple[WorkflowStep, ...]
     truncated_by_depth: bool
+    mermaid: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

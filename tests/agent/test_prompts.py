@@ -12,14 +12,16 @@ from src.tool_engine.state_policy import AGENT_TOOLS, allowed_tools
 def test_agent_prompt_has_layers_and_tools() -> None:
     text = build_system_prompt(
         fsm_state="AGENT",
-        user_query="add /health endpoint",
+        user_query="refactor auth architecture and add /health endpoint",
         repo_path="/tmp/repo",
+        task_complexity="COMPLEX",
+        agent_state=AgentState(phase="IMPLEMENT", objective="Implement"),
     )
     assert "You are Neutrino" in text
     assert DYNAMIC_BOUNDARY in text
     assert "## AVAILABLE CAPABILITIES" in text
     assert "## CURRENT TASK" in text
-    assert "add /health endpoint" in text
+    assert "refactor auth architecture" in text
     assert "`executor.apply`" in text
     assert "`rna.read_file`" in text
     assert "`rna.get_hld`" in text

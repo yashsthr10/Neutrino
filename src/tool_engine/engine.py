@@ -9,6 +9,8 @@ from src.context.bootstrap import build_context_subsystem
 from src.context.config import ContextConfig
 from src.execution import GitService, build_execution_service
 from src.tool_engine.capabilities import (
+    AgentTaskCapability,
+    CapabilitiesCapability,
     ContextCapability,
     ExecutionCapability,
     GitCapability,
@@ -58,20 +60,41 @@ class ToolEngine:
         self.executor = executor
         self.serializer = serializer
         self.services = services
+        self._expanded_deferred: set[str] = set()
+
+    def expand_deferred_tool(self, name: str) -> None:
+        """Load full schema for a deferred tool for the rest of the session."""
+        self._expanded_deferred.add(name)
+
+    def register_deferred_tools(self, specs: list[ToolSpec]) -> None:
+        """Register MCP or other deferred tool stubs (stable append order)."""
+        for spec in sorted(specs, key=lambda s: s.name):
+            self.registry.register(spec)
 
     def list_tools(self, state: str) -> list[ToolSpec]:
         return self.registry.list(state=normalize_state(state))
 
     def schemas_for_state(self, state: str) -> list[dict[str, Any]]:
-        return specs_to_schemas(self.list_tools(state))
+        return specs_to_schemas(
+            self.list_tools(state),
+            expanded_deferred=frozenset(self._expanded_deferred),
+        )
 
     def invoke(self, request: ToolRequest, *, state: str | None = None) -> ToolResult:
         resolved_state = normalize_state(state or _infer_state(request) or "INIT")
 
         try:
-            spec = self.validator.validate(request, state=resolved_state)
-            handler = self.dispatcher.resolve(spec.handler_key)
             args = dict(request.arguments or {})
+            args = _strip_host_only_args(request.name, args)
+            validation_request = ToolRequest(
+                name=request.name,
+                arguments=args,
+                execution_context=request.execution_context,
+            )
+            spec = self.validator.validate(validation_request, state=resolved_state)
+            handler = self.dispatcher.resolve(spec.handler_key)
+            self.services.execution_context = request.execution_context
+            args = _apply_host_context(spec.name, args, request.execution_context)
             # Fill defaults for missing optional params
             for p in spec.parameters:
                 if p.name not in args and p.default is not None:
@@ -110,6 +133,41 @@ class ToolEngine:
             return self.serializer.from_exception(str(exc), error_code="execution_error")
         except ToolEngineError as exc:
             return self.serializer.from_exception(str(exc), error_code="tool_engine_error")
+        finally:
+            self.services.execution_context = None
+
+
+_CONTEXT_TOOLS = frozenset({"context.resolve", "context.expand", "context.refresh"})
+_HOST_ONLY_ARGS = frozenset({"task_complexity", "requesting_agent"})
+
+
+def _strip_host_only_args(tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
+    """Remove host-injected fields before LLM schema validation."""
+    if tool_name not in _CONTEXT_TOOLS:
+        return args
+    return {k: v for k, v in args.items() if k not in _HOST_ONLY_ARGS}
+
+
+def _apply_host_context(
+    tool_name: str,
+    args: dict[str, Any],
+    execution_context: Any | None,
+) -> dict[str, Any]:
+    """Inject host-owned context fields; overrides model-supplied tier/agent."""
+    if tool_name not in _CONTEXT_TOOLS or execution_context is None:
+        return args
+    req = getattr(execution_context, "request", None)
+    if req is None:
+        return args
+    out = dict(args)
+    complexity = getattr(req, "task_complexity", None)
+    if complexity:
+        out["task_complexity"] = complexity
+    agent = getattr(req, "requesting_agent", None)
+    if agent:
+        # Context prefetch uses planner retrieval rules regardless of host agent label.
+        out["requesting_agent"] = "planner" if tool_name == "context.resolve" else agent
+    return out
 
 
 def _infer_state(request: ToolRequest) -> str | None:
@@ -142,12 +200,14 @@ def build_tool_engine(
         VerificationCapability(services, serializer),
         GitCapability(services, serializer),
         PlanningCapability(services, serializer),
+        CapabilitiesCapability(services, serializer),
+        AgentTaskCapability(services, serializer),
     ]
     for cap in capabilities:
         for key, handler in cap.as_handler_map().items():
             dispatcher.bind(key, handler)
 
-    return ToolEngine(
+    engine = ToolEngine(
         registry=registry,
         validator=ToolValidator(registry),
         dispatcher=dispatcher,
@@ -155,6 +215,8 @@ def build_tool_engine(
         serializer=serializer,
         services=services,
     )
+    services.engine = engine
+    return engine
 
 
 def build_tool_engine_from_subsystem(

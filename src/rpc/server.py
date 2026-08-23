@@ -140,6 +140,10 @@ class RpcServer:
             mode = str(params.get("mode") or "fast")
             self._orch.set_runtime_mode(mode)  # type: ignore[arg-type]
             return {"ok": True}
+        if method == "runtime.setPlanMode":
+            self._require_hello()
+            self._orch.set_plan_mode(bool(params.get("enabled", True)))
+            return {"ok": True}
         if method == "runtime.retry":
             self._require_hello()
             self._orch.request_retry()

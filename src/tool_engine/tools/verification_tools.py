@@ -58,6 +58,7 @@ def verification_tool_specs() -> list[ToolSpec]:
             category="verification",
             handler_key="review.run",
             states=TOOL_AVAILABLE_STATES,
+            deferred=True,
             when_to_use="Explicit review request when implemented.",
             when_not_to_use="Prefer tests.run / lint.run for verification today.",
             pairs_with=("tests.run", "lint.run"),

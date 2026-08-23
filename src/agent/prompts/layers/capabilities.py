@@ -5,6 +5,13 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any, Protocol
 
+from src.agent.prompts.gates import (
+    should_inject_architecture_diagrams,
+    should_inject_edit_formats,
+    should_inject_plan_tasks_guidance,
+    should_inject_terminal_preferences,
+)
+
 
 class _ToolLike(Protocol):
     name: str
@@ -97,10 +104,51 @@ Default **`format=json`**.
 (e.g. `src/pkg/handler.py:handle`).
 
 Use **`format=mermaid`** only when the user needs a diagram preview, not for routine reasoning.
+
+For broad exploration, prefer **`context.resolve`** first; use direct **`rna.get_hld`** when you \
+need a specific scope or granularity.
+"""
+
+_TERMINAL_PREFERENCES = """\
+## Shell vs specialized tools
+
+| Need | Tool |
+|------|------|
+| Read file | `rna.read_file` |
+| Find paths | `rna.list_files` / `rna.search` |
+| Repo architecture | `rna.get_hld` |
+| Module internals | `rna.get_lld` |
+| Runtime call path | `rna.trace_workflow` |
+| Tests / lint | `tests.run` / `lint.run` |
+| Other shell | `terminal.run` (`approved=true`) |
+
+Do not use **`terminal.run`** for tasks a specialized tool already covers.
+"""
+
+_PLAN_TASKS_GUIDANCE = """\
+## Task checklist — `plan.set_tasks`
+
+For multi-step work, call **`plan.set_tasks`** after discovery with a short checklist \
+(`content`, optional `status`). Update statuses as you progress.
+"""
+
+_PLAN_MODE_OVERLAY = """\
+## Plan mode (active)
+
+Explore and plan only — **do not** call `executor.apply`, `terminal.run`, or `git.commit`. \
+Use read/search/architecture tools; summarize the plan for the user.
 """
 
 
-def render_capabilities(tools: list[Any] | tuple[Any, ...]) -> str:
+def render_capabilities(
+    tools: list[Any] | tuple[Any, ...],
+    *,
+    user_query: str = "",
+    task_complexity: str | None = None,
+    agent_phase: str | None = None,
+    tools_called: tuple[str, ...] | list[str] = (),
+    plan_mode: bool = False,
+) -> str:
     """Render L2 from tool objects exposing ToolSpec-like fields."""
     by_cat: dict[str, list[Any]] = defaultdict(list)
     names: set[str] = set()
@@ -138,10 +186,29 @@ def render_capabilities(tools: list[Any] | tuple[Any, ...]) -> str:
                 lines.append("- Pairs with: " + ", ".join(f"`{p}`" for p in pairs))
             lines.append("")
     lines.append(_TOOL_RESULT_CONTRACT)
-    if "rna.get_hld" in names or "rna.get_lld" in names:
+    if should_inject_architecture_diagrams(
+        tools,
+        query=user_query,
+        task_complexity=task_complexity,
+        tools_called=tools_called,
+    ):
         lines.append("")
         lines.append(_ARCHITECTURE_DIAGRAMS)
-    if "executor.apply" in names:
+    if should_inject_edit_formats(
+        tools,
+        query=user_query,
+        agent_phase=agent_phase,
+        tools_called=tools_called,
+    ):
         lines.append("")
         lines.append(_EDIT_FORMATS)
+    if should_inject_terminal_preferences(tools, query=user_query, agent_phase=agent_phase):
+        lines.append("")
+        lines.append(_TERMINAL_PREFERENCES)
+    if should_inject_plan_tasks_guidance(task_complexity=task_complexity, tools=tools):
+        lines.append("")
+        lines.append(_PLAN_TASKS_GUIDANCE)
+    if plan_mode:
+        lines.append("")
+        lines.append(_PLAN_MODE_OVERLAY)
     return "\n".join(lines).strip() + "\n"

@@ -35,6 +35,15 @@ class ModelCompleted:
 
 
 @dataclass(frozen=True, slots=True)
+class ModelToolIntent:
+    """Best-effort signal that the model is starting a tool call."""
+
+    iteration: int
+    tool_name: str
+    fsm_state: str
+
+
+@dataclass(frozen=True, slots=True)
 class ModelStreamDelta:
     """Incremental model output while streaming (reasoning or answer text)."""
 

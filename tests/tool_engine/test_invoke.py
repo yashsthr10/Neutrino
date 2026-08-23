@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from tests.doubles.context import FakeContextManager
+from src.context.runtime.execution_context import ExecutionContext
+from src.context.runtime.request_context import RequestContext
 from src.tool_engine import ToolEngine, ToolRequest
 
 
@@ -20,6 +22,31 @@ def test_context_resolve(engine: ToolEngine, fake_context: FakeContextManager) -
     assert result.data["task_description"] == "Implement OAuth"
     assert result.data["repository"]["item_count"] == 1
     assert fake_context.call_counts.get("resolve", 0) >= 1
+
+
+def test_context_resolve_injects_host_complexity(engine: ToolEngine) -> None:
+    ctx = ExecutionContext(
+        request=RequestContext(
+            request_id="r1",
+            session_id="s1",
+            user_query="redesign auth",
+            repo_path="/tmp/repo",
+            requesting_agent="coder",
+            task_complexity="COMPLEX",
+            created_at="2026-01-01T00:00:00Z",
+        )
+    )
+    result = engine.invoke(
+        ToolRequest(
+            name="context.resolve",
+            arguments={"task_description": "redesign auth", "task_complexity": "SIMPLE"},
+            execution_context=ctx,
+        ),
+        state="AGENT",
+    )
+    assert result.success is True
+    assert result.data["task_complexity"] == "COMPLEX"
+    assert result.data["requesting_agent"] == "planner"
 
 
 def test_rna_find_symbol(engine: ToolEngine) -> None:

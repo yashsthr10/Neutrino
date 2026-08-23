@@ -27,6 +27,10 @@ class ReminderFacts:
     tokens_used: int = 0
     token_budget: int = 0
     question_like: bool = False
+    task_complexity: str | None = None
+    agent_phase: str | None = None
+    has_plan_tasks: bool = False
+    plan_mode: bool = False
 
 
 _CATALOG: list[tuple[str, str]] = [
@@ -71,6 +75,16 @@ _CATALOG: list[tuple[str, str]] = [
         "budget",
         "You are approaching the iteration or token budget. "
         "Prioritize finishing the outcome or summarizing the blocker.",
+    ),
+    (
+        "plan_tasks",
+        "This is a complex task without a checklist. "
+        "Call `plan.set_tasks` with 3–7 concrete steps before implementing.",
+    ),
+    (
+        "plan_mode",
+        "Plan mode is active — explore and plan only. "
+        "Do not call `executor.apply`, `terminal.run`, or `git.commit`.",
     ),
 ]
 
@@ -145,6 +159,16 @@ def build_reminders(facts: ReminderFacts) -> tuple[str, ...]:
         and len(facts.tools_called) >= 4
     ):
         add("prefer_answer")
+    if facts.plan_mode:
+        add("plan_mode")
+    if (
+        (facts.task_complexity or "").upper() == "COMPLEX"
+        and not facts.has_plan_tasks
+        and facts.agent_phase not in {None, "DISCOVER"}
+        and "plan.set_tasks" not in facts.tools_called
+        and not facts.apply_attempted
+    ):
+        add("plan_tasks")
     if facts.max_iterations and facts.iteration >= max(1, facts.max_iterations - 2):
         add("budget")
     if (

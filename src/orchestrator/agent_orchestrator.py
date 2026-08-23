@@ -20,6 +20,7 @@ from src.agent.events import (
     ModelCompleted,
     ModelInvoked,
     ModelStreamDelta,
+    ModelToolIntent,
     TimingSummary,
     ToolCallCompleted,
     ToolCallRequested,
@@ -43,6 +44,7 @@ from src.context.runtime.request_context import RequestContext
 from src.context.runtime.verification_context import VerificationContext
 from src.inference.models.request import Message as InferenceMessage
 from src.inference.ports.inference_port import InferencePort
+from src.agent.compaction import build_session_summary
 from src.orchestrator.completion import (
     CompletionDecisionKind,
     CompletionTracker,
@@ -50,6 +52,7 @@ from src.orchestrator.completion import (
     refresh_policy_on_context,
 )
 from src.orchestrator.env_probe import probe_environment
+from src.orchestrator.project_rules import load_project_rules
 from src.orchestrator.workflow import WorkflowController
 from src.ports.orchestrator_port import (
     AgentMessage,
@@ -106,10 +109,12 @@ class AgentOrchestrator:
         self._repo_path = repo_path.resolve()
         self._inference = inference
         self._tool_engine = tool_engine
+        self._register_mcp_deferred_tools()
         self._rules = rules or CliRules()
         self._auto_approve = auto_approve
         self._session_id = session_id or uuid.uuid4().hex
         self._runtime_mode: Literal["fast", "deep", "auto"] = "fast"
+        self._plan_mode = False
         self._lock = threading.Lock()
         self._thread: threading.Thread | None = None
         self._approval_event = threading.Event()
@@ -234,6 +239,10 @@ class AgentOrchestrator:
             environment=self._env,
             agent_state=self._agent_state,
         )
+        controller.loop.plan_mode = self._plan_mode
+        controller.loop.project_rules = load_project_rules(self._repo_path)
+        controller.loop.harness = self._inference_harness()
+        self._tool_engine.services.inference = self._inference
         self._controller = controller
 
         first = True
@@ -602,6 +611,8 @@ class AgentOrchestrator:
                         level="info",
                     )
                 )
+        elif isinstance(event, ModelToolIntent):
+            self._emit(LogLine(f"Planning tool: {event.tool_name}", level="info"))
         elif isinstance(event, ModelStreamDelta):
             if event.channel == "reasoning":
                 if not self._reasoning_stream_open:
@@ -678,7 +689,33 @@ class AgentOrchestrator:
 
     def set_runtime_mode(self, mode: Literal["fast", "deep", "auto"]) -> None:
         self._runtime_mode = mode
-        self._status()
+
+    def _register_mcp_deferred_tools(self) -> None:
+        import os
+
+        raw = os.environ.get("NEUTRINO_MCP_DEFERRED_TOOLS", "").strip()
+        if not raw:
+            return
+        from src.tool_engine.mcp_registry import register_mcp_deferred_tools
+
+        names = [part.strip() for part in raw.split(",") if part.strip()]
+        if names:
+            register_mcp_deferred_tools(self._tool_engine, names)
+
+    def set_plan_mode(self, enabled: bool) -> None:
+        self._plan_mode = bool(enabled)
+        if enabled:
+            self._agent_state = AgentState(
+                phase="PLAN", objective="Explore and plan without edits."
+            )
+
+    def _inference_harness(self) -> dict[str, Any]:
+        cfg = getattr(self._inference, "config", None) or getattr(
+            getattr(self._inference, "_config", None), "__dict__", {}
+        )
+        provider = str(getattr(cfg, "provider", None) or getattr(cfg, "type", "") or "")
+        model = str(getattr(cfg, "model", "") or "")
+        return {"provider": provider, "model": model, "supports_native_tools": True}
 
     def request_retry(self) -> None:
         self._emit(LogLine("Retry requested — resubmit the task", level="info"))
@@ -760,9 +797,15 @@ def _trim_session_history(
         pruned = True
 
     if pruned:
+        dropped_count = max(0, len(messages) - len(kept))
+        summary_text = (
+            build_session_summary(messages[:dropped_count])
+            if dropped_count
+            else ("[Earlier conversation pruned for context limits.]")
+        )
         marker = InferenceMessage(
             role="user",
-            content="[Earlier conversation pruned for context limits.]",
+            content=summary_text,
         )
         # Make room for the marker under the message cap.
         while len(kept) >= max_messages:

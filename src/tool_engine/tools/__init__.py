@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from src.tool_engine.models import ToolSpec
+from src.tool_engine.tools.agent_tools import agent_tool_specs
+from src.tool_engine.tools.capabilities_tools import capabilities_tool_specs
 from src.tool_engine.tools.context_tools import context_tool_specs
 from src.tool_engine.tools.execution_tools import execution_tool_specs
 from src.tool_engine.tools.git_tools import git_tool_specs
@@ -23,4 +25,6 @@ def all_tool_specs() -> list[ToolSpec]:
         *verification_tool_specs(),
         *git_tool_specs(),
         *planning_tool_specs(),
+        *capabilities_tool_specs(),
+        *agent_tool_specs(),
     ]

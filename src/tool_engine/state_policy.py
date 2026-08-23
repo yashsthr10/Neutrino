@@ -37,6 +37,7 @@ _EXECUTOR_ALL = frozenset({"executor.apply", "executor.rollback", "executor.diff
 _GIT_ALL = frozenset({"git.commit", "git.undo", "git.diff"})
 _VERIFY_ALL = frozenset({"verify.probe", "tests.run", "lint.run", "review.run"})
 _PLANNING_ALL = frozenset({"plan.set_tasks"})
+_CAPABILITIES_ALL = frozenset({"capabilities.describe", "agent.task"})
 
 # Claude Code–style open surface for the continuous agent loop.
 AGENT_TOOLS = (
@@ -48,6 +49,7 @@ AGENT_TOOLS = (
     | _GIT_ALL
     | _VERIFY_ALL
     | _PLANNING_ALL
+    | _CAPABILITIES_ALL
 )
 
 # Legacy phase labels alias to AGENT during migration.
@@ -76,4 +78,10 @@ def allowed_tools(state: str | None) -> frozenset[str]:
 
 
 def is_allowed(tool_name: str, state: str | None) -> bool:
-    return tool_name in allowed_tools(state)
+    key = normalize_state(state)
+    if tool_name in allowed_tools(state):
+        return True
+    # Runtime MCP deferred stubs (registered after engine build).
+    if key in {"AGENT", "PLAN", "CONTEXT", "EXECUTE", "VERIFY", "REVIEW"}:
+        return tool_name.startswith("mcp.")
+    return False
