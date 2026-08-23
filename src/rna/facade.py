@@ -6,6 +6,7 @@ import time
 from pathlib import Path
 from typing import Literal
 
+from src.config.constants import HLD_DEFAULT_FORMAT, HLD_DEFAULT_GRANULARITY, LLD_DEFAULT_FORMAT
 from src.rna.adapters.registry import LanguageRegistry
 from src.rna.cache.invalidation import Invalidator
 from src.rna.cache.keys import make_cache_key
@@ -322,11 +323,16 @@ class Rna:
         self,
         *,
         scope: str | None = None,
-        format: Literal["json", "mermaid"] = "json",
+        format: Literal["json", "mermaid"] = HLD_DEFAULT_FORMAT,
+        granularity: Literal["coarse", "module", "fine", "file"] = HLD_DEFAULT_GRANULARITY,
     ) -> RnaResult[HLDModel]:
-        with timed_call("get_hld", f"scope={scope}") as log:
+        with timed_call("get_hld", f"scope={scope} granularity={granularity}") as log:
             t0 = time.perf_counter()
-            model = self._ensure_design().get_hld(scope=scope, format=format)
+            model = self._ensure_design().get_hld(
+                scope=scope,
+                format=format,
+                granularity=granularity,
+            )
             cost = (time.perf_counter() - t0) * 1000
             log.cache_hit = False
             return RnaResult(
@@ -343,7 +349,7 @@ class Rna:
         self,
         scope: str,
         *,
-        format: Literal["json", "mermaid"] = "json",
+        format: Literal["json", "mermaid"] = LLD_DEFAULT_FORMAT,
     ) -> RnaResult[LLDModel]:
         with timed_call("get_lld", f"scope={scope}") as log:
             t0 = time.perf_counter()

@@ -6,6 +6,8 @@ from collections import defaultdict, deque
 from pathlib import Path
 from typing import Literal
 
+from src.config.constants import HLD_DEFAULT_FORMAT, HLD_DEFAULT_GRANULARITY, LLD_DEFAULT_FORMAT
+
 from src.rna.adapters.base import detect_language
 from src.rna.adapters.registry import LanguageRegistry
 from src.rna.graph_engine.call_graph import CallGraphService
@@ -14,6 +16,7 @@ from src.rna.graph_engine.symbol_index import SymbolIndex
 from src.rna.models import (
     Confidence,
     HLDEdge,
+    HLDGranularity,
     HLDModel,
     HLDNode,
     LLDEdge,
@@ -24,6 +27,40 @@ from src.rna.models import (
     WorkflowTrace,
 )
 from src.rna.repo_analyzer.tree import RepoTree
+
+_KNOWN_ROOTS = frozenset({"src", "lib", "pkg", "app", "tests", "test"})
+
+
+def _escape_mermaid_label(text: str) -> str:
+    """Escape characters that break Mermaid node labels."""
+    return text.replace('"', "'").replace("\n", " ")
+
+
+def _format_mermaid_flowchart(
+    edges: list[tuple[str, str, int | str]],
+    *,
+    max_edges: int | None = None,
+) -> str:
+    """Build a Mermaid flowchart with safe node ids and human-readable labels.
+
+    Raw ids like ``src/agent`` or ``ext:os.path`` break many Mermaid parsers when
+    used directly as node identifiers; map them to ``n0``, ``n1``, … with labels.
+    """
+    trimmed = edges[:max_edges] if max_edges is not None else edges
+    node_ids: set[str] = set()
+    for src, dst, _ in trimmed:
+        node_ids.add(src)
+        node_ids.add(dst)
+
+    id_map = {raw: f"n{i}" for i, raw in enumerate(sorted(node_ids))}
+
+    lines = ["graph TD"]
+    for raw in sorted(node_ids):
+        mid = id_map[raw]
+        lines.append(f'  {mid}["{_escape_mermaid_label(raw)}"]')
+    for src, dst, weight in trimmed:
+        lines.append(f"  {id_map[src]} -->|{weight}| {id_map[dst]}")
+    return "\n".join(lines)
 
 
 class DesignRecovery:
@@ -116,7 +153,8 @@ class DesignRecovery:
         self,
         *,
         scope: str | None = None,
-        format: Literal["json", "mermaid"] = "json",
+        format: Literal["json", "mermaid"] = HLD_DEFAULT_FORMAT,
+        granularity: HLDGranularity = HLD_DEFAULT_GRANULARITY,
     ) -> HLDModel:
         graph = self.import_graph.get_import_graph(scope)
         package_of = {}
@@ -130,19 +168,21 @@ class DesignRecovery:
             files = [f for f in files if f == scope_n or f.startswith(scope_n + "/")]
 
         for f in files:
-            pkg = self._package_id(f)
+            pkg = self._hld_node_id(f, granularity=granularity)
             package_of[f] = pkg
             nodes_set.add(pkg)
             if self._is_entrypoint(f):
                 entrypoints.add(pkg)
 
         for edge in graph.edges:
-            src = package_of.get(edge.from_file) or self._package_id(edge.from_file)
+            src = package_of.get(edge.from_file) or self._hld_node_id(
+                edge.from_file, granularity=granularity
+            )
             if edge.external:
                 dst = f"ext:{edge.to}"
                 nodes_set.add(dst)
             else:
-                dst = package_of.get(edge.to) or self._package_id(edge.to)
+                dst = package_of.get(edge.to) or self._hld_node_id(edge.to, granularity=granularity)
                 nodes_set.add(dst)
             if src != dst:
                 edge_weights[(src, dst)] += 1
@@ -150,11 +190,7 @@ class DesignRecovery:
         nodes = tuple(
             HLDNode(
                 id=n,
-                kind=(
-                    "external_dependency"
-                    if n.startswith("ext:")
-                    else ("package" if "/" not in n.strip(".") else "module")
-                ),
+                kind=self._hld_node_kind(n, granularity=granularity),
                 entrypoint=n in entrypoints,
             )
             for n in sorted(nodes_set)
@@ -164,17 +200,14 @@ class DesignRecovery:
         )
         mermaid = None
         if format == "mermaid":
-            lines = ["graph TD"]
-            for e in edges:
-                lines.append(f'  "{e.from_id}" -->|{e.weight}| "{e.to_id}"')
-            mermaid = "\n".join(lines)
+            mermaid = _format_mermaid_flowchart([(e.from_id, e.to_id, e.weight) for e in edges])
         return HLDModel(nodes=nodes, edges=edges, mermaid=mermaid)
 
     def get_lld(
         self,
         scope: str,
         *,
-        format: Literal["json", "mermaid"] = "json",
+        format: Literal["json", "mermaid"] = LLD_DEFAULT_FORMAT,
     ) -> tuple[LLDModel, bool, str | None, Confidence]:
         lang = detect_language(scope) or self.registry.primary_language()
         providers = self.registry.resolve(lang)
@@ -216,10 +249,10 @@ class DesignRecovery:
                 )
             mermaid = None
             if format == "mermaid":
-                lines = ["graph TD"]
-                for ed in edges[:200]:
-                    lines.append(f'  "{ed.from_id}" -->|{ed.kind}| "{ed.to_id}"')
-                mermaid = "\n".join(lines)
+                mermaid = _format_mermaid_flowchart(
+                    [(ed.from_id, ed.to_id, ed.kind) for ed in edges],
+                    max_edges=200,
+                )
             return (
                 LLDModel(scope=scope, nodes=tuple(nodes), edges=tuple(edges), mermaid=mermaid),
                 False,
@@ -275,10 +308,10 @@ class DesignRecovery:
                 conf = "heuristic"
         mermaid = None
         if format == "mermaid":
-            lines = ["graph TD"]
-            for ed in edges[:200]:
-                lines.append(f'  "{ed.from_id}" -->|{ed.kind}| "{ed.to_id}"')
-            mermaid = "\n".join(lines)
+            mermaid = _format_mermaid_flowchart(
+                [(ed.from_id, ed.to_id, ed.kind) for ed in edges],
+                max_edges=200,
+            )
         return (
             LLDModel(scope=scope, nodes=tuple(nodes), edges=tuple(edges), mermaid=mermaid),
             degraded,
@@ -287,18 +320,47 @@ class DesignRecovery:
         )
 
     @staticmethod
-    def _package_id(path: str) -> str:
-        parts = Path(path).parts
+    def _hld_node_id(path: str, *, granularity: HLDGranularity = "module") -> str:
+        """Map a repo-relative path to an HLD node id for the requested granularity."""
+        normalized = path.replace("\\", "/")
+        if granularity == "file":
+            return normalized
+
+        parts = Path(normalized).parts
         if not parts:
             return "."
-        if len(parts) == 1:
+
+        if granularity == "coarse":
             return parts[0]
-        # first directory as package bucket (src/foo -> src/foo if deeper)
-        if parts[0] in {"src", "lib", "pkg", "app", "tests", "test"}:
-            if len(parts) >= 2:
-                return f"{parts[0]}/{parts[1]}"
-            return parts[0]
-        return parts[0]
+
+        if granularity == "module":
+            dir_parts = parts[:-1] if len(parts) > 1 and "." in parts[-1] else parts
+            if not dir_parts:
+                return parts[0]
+            if parts[0] in _KNOWN_ROOTS:
+                take = min(2, len(dir_parts))
+                return "/".join(dir_parts[:take])
+            return dir_parts[0]
+
+        # fine: up to three directory segments under known roots, else two.
+        dir_parts = parts[:-1] if len(parts) > 1 and "." in parts[-1] else parts
+        if parts[0] in _KNOWN_ROOTS:
+            take = min(3, len(dir_parts))
+            return "/".join(dir_parts[:take]) if take else parts[0]
+        take = min(2, len(dir_parts))
+        return "/".join(dir_parts[:take]) if take else parts[0]
+
+    @staticmethod
+    def _hld_node_kind(
+        node_id: str, *, granularity: HLDGranularity = "module"
+    ) -> Literal["package", "module", "external_dependency"]:
+        if node_id.startswith("ext:"):
+            return "external_dependency"
+        if granularity == "file":
+            return "module"
+        if "/" not in node_id.strip("."):
+            return "package"
+        return "module"
 
     def _is_entrypoint(self, path: str) -> bool:
         p = self.registry.repo_root / path

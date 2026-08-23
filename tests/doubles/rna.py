@@ -143,7 +143,11 @@ class FakeRna:
         )
 
     def get_hld(
-        self, *, scope: str | None = None, format: Literal["json", "mermaid"] = "json"
+        self,
+        *,
+        scope: str | None = None,
+        format: Literal["json", "mermaid"] = "json",
+        granularity: Literal["coarse", "module", "fine", "file"] = "module",
     ) -> RnaResult[HLDModel]:
         model = self.hld
         if format == "mermaid" and model.mermaid is None:
@@ -161,6 +165,13 @@ class FakeRna:
         self, scope: str, *, format: Literal["json", "mermaid"] = "json"
     ) -> RnaResult[LLDModel]:
         model = self.lld.get(scope, LLDModel(scope=scope, nodes=(), edges=()))
+        if format == "mermaid" and model.mermaid is None:
+            model = LLDModel(
+                scope=scope,
+                nodes=model.nodes,
+                edges=model.edges,
+                mermaid="graph TD\n  A-->B",
+            )
         return RnaResult(
             data=model,
             meta=RnaMeta(cost_ms=0.0, cache_hit=True, truncated=False, confidence="whole_program"),

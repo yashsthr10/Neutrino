@@ -9,6 +9,7 @@ from src.tool_engine.tools.git_tools import git_tool_specs
 from src.tool_engine.tools.planning_tools import planning_tool_specs
 from src.tool_engine.tools.research_tools import research_tool_specs
 from src.tool_engine.tools.rna_tools import rna_tool_specs
+from src.tool_engine.tools.terminal_tools import terminal_tool_specs
 from src.tool_engine.tools.verification_tools import verification_tool_specs
 
 
@@ -18,6 +19,7 @@ def all_tool_specs() -> list[ToolSpec]:
         *rna_tool_specs(),
         *research_tool_specs(),
         *execution_tool_specs(),
+        *terminal_tool_specs(),
         *verification_tool_specs(),
         *git_tool_specs(),
         *planning_tool_specs(),

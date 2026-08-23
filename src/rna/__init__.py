@@ -10,6 +10,7 @@ from src.rna.facade import Rna
 from src.rna.models import (
     CallEdge,
     FileSlice,
+    HLDGranularity,
     HLDModel,
     ImportGraph,
     LLDModel,
@@ -53,7 +54,11 @@ class RnaPort(Protocol):
     def get_workflow(self, entrypoint: str, *, max_depth: int = 4) -> RnaResult[WorkflowTrace]: ...
 
     def get_hld(
-        self, *, scope: str | None = None, format: Literal["json", "mermaid"] = "json"
+        self,
+        *,
+        scope: str | None = None,
+        format: Literal["json", "mermaid"] = "json",
+        granularity: Literal["coarse", "module", "fine", "file"] = "module",
     ) -> RnaResult[HLDModel]: ...
 
     def get_lld(
@@ -84,6 +89,7 @@ __all__ = [
     "CallEdge",
     "TestLink",
     "WorkflowTrace",
+    "HLDGranularity",
     "HLDModel",
     "LLDModel",
     "SearchHit",

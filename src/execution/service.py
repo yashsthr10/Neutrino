@@ -17,7 +17,7 @@ from src.execution.models import (
     ShellResult,
 )
 from src.execution.paths import PathSecurityError, resolve_repo_path
-from src.execution.shell import run_shell
+from src.execution.shell import run_shell, run_terminal
 
 
 @runtime_checkable
@@ -41,6 +41,17 @@ class ExecutionPort(Protocol):
         command: str,
         approved: bool = False,
         timeout_s: float = 120.0,
+    ) -> ShellResult: ...
+
+    def terminal(
+        self,
+        *,
+        command: str,
+        approved: bool = False,
+        timeout_s: float = 600.0,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
+        stdin: str | None = None,
     ) -> ShellResult: ...
 
 
@@ -163,6 +174,26 @@ class ExecutionService:
         return run_shell(
             command,
             cwd=self.repo_root,
+            timeout_s=timeout_s,
+            approved=approved,
+        )
+
+    def terminal(
+        self,
+        *,
+        command: str,
+        approved: bool = False,
+        timeout_s: float = 600.0,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
+        stdin: str | None = None,
+    ) -> ShellResult:
+        return run_terminal(
+            command,
+            repo_root=self.repo_root,
+            cwd=cwd,
+            env=env,
+            stdin=stdin,
             timeout_s=timeout_s,
             approved=approved,
         )

@@ -13,9 +13,12 @@ def test_agent_schemas_include_full_surface(engine: ToolEngine) -> None:
     assert "context.expand" in names
     assert "rna.find_symbol" in names
     assert "rna.read_file" in names
+    assert "rna.get_hld" in names
+    assert "rna.get_lld" in names
     assert "research.web" in names
     assert "executor.apply" in names
     assert "executor.run" in names
+    assert "terminal.run" in names
     assert "verify.probe" in names
     assert "tests.run" in names
     assert "lint.run" in names

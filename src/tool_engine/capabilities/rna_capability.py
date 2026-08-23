@@ -20,6 +20,8 @@ class RnaCapability(CapabilityBase):
             "rna.read_file": self.read_file,
             "rna.search": self.search,
             "rna.list_files": self.list_files,
+            "rna.get_hld": self.get_hld,
+            "rna.get_lld": self.get_lld,
         }
 
     def find_symbol(self, *, name: str, file_hint: str | None = None) -> ToolResult:
@@ -92,3 +94,45 @@ class RnaCapability(CapabilityBase):
             ),
         )
         return self.serializer.serialize(composed)
+
+    def get_hld(
+        self,
+        *,
+        scope: str | None = None,
+        format: str = "json",
+        granularity: str = "module",
+    ) -> ToolResult:
+        fmt, fmt_err = _parse_diagram_format(format)
+        if fmt_err:
+            return self.serializer.from_exception(fmt_err, error_code="validation_error")
+        gran, gran_err = _parse_hld_granularity(granularity)
+        if gran_err:
+            return self.serializer.from_exception(gran_err, error_code="validation_error")
+        result = self.require_rna().get_hld(scope=scope, format=fmt, granularity=gran)  # type: ignore[arg-type]
+        return self.serializer.serialize(result)
+
+    def get_lld(
+        self,
+        *,
+        scope: str,
+        format: str = "json",
+    ) -> ToolResult:
+        fmt, fmt_err = _parse_diagram_format(format)
+        if fmt_err:
+            return self.serializer.from_exception(fmt_err, error_code="validation_error")
+        result = self.require_rna().get_lld(scope=scope, format=fmt)  # type: ignore[arg-type]
+        return self.serializer.serialize(result)
+
+
+def _parse_diagram_format(value: str) -> tuple[str | None, str | None]:
+    normalized = (value or "json").strip().lower()
+    if normalized not in {"json", "mermaid"}:
+        return None, f"format must be json or mermaid, got {value!r}"
+    return normalized, None
+
+
+def _parse_hld_granularity(value: str) -> tuple[str | None, str | None]:
+    normalized = (value or "module").strip().lower()
+    if normalized not in {"coarse", "module", "fine", "file"}:
+        return None, f"granularity must be coarse, module, fine, or file, got {value!r}"
+    return normalized, None

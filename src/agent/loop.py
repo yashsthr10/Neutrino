@@ -55,7 +55,7 @@ logger = logging.getLogger("neutrino.agent")
 EventCallback = Callable[[AgentEvent], None]
 ContextUpdater = Callable[[ExecutionContext, str, dict[str, Any], ToolResult], ExecutionContext]
 
-_TOOLS_NEEDING_APPROVAL = frozenset({"executor.run"})
+_TOOLS_NEEDING_APPROVAL = frozenset({"executor.run", "terminal.run"})
 
 
 @dataclass

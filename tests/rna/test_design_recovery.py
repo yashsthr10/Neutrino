@@ -8,6 +8,50 @@ import pytest
 
 from src.rna import Rna
 from src.rna.config import RnaConfig
+from src.rna.graph_engine.design_recovery import DesignRecovery, _format_mermaid_flowchart
+
+
+def test_mermaid_flowchart_uses_safe_node_ids() -> None:
+    diagram = _format_mermaid_flowchart(
+        [
+            ("src/agent", "ext:__future__", 2),
+            ("src/agent", "src/tool_engine", 8),
+        ]
+    )
+    assert "graph TD" in diagram
+    assert '"src/agent"' in diagram
+    assert '"ext:__future__"' in diagram
+    assert '"src/agent" -->' not in diagram
+    assert "n0[" in diagram
+    assert " -->|" in diagram
+
+
+def test_hld_granularity_controls_node_grouping(rna_python: Rna) -> None:
+    coarse = rna_python.get_hld(scope="pkg", granularity="coarse")
+    file_level = rna_python.get_hld(scope="pkg", granularity="file")
+
+    assert len(coarse.data.nodes) < len(file_level.data.nodes)
+    assert any(n.id == "pkg" for n in coarse.data.nodes)
+    assert all("/" in n.id or n.id.endswith(".py") for n in file_level.data.nodes)
+
+
+def test_hld_node_id_mapping() -> None:
+    assert DesignRecovery._hld_node_id("src/agent/loop.py", granularity="coarse") == "src"
+    assert DesignRecovery._hld_node_id("src/agent/loop.py", granularity="module") == "src/agent"
+    assert DesignRecovery._hld_node_id("pkg/parser.py", granularity="module") == "pkg"
+    assert (
+        DesignRecovery._hld_node_id("src/agent/prompts/layers/foo.py", granularity="fine")
+        == "src/agent/prompts"
+    )
+    assert (
+        DesignRecovery._hld_node_id("src/agent/loop.py", granularity="file") == "src/agent/loop.py"
+    )
+
+
+def test_get_hld_defaults_to_json(rna_python: Rna) -> None:
+    hld = rna_python.get_hld(scope="pkg")
+    assert hld.data.mermaid is None
+    assert hld.data.nodes
 
 
 def test_get_import_graph_and_hld(rna_python: Rna) -> None:

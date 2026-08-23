@@ -59,8 +59,11 @@ SEARCH must match the file exactly (read first). Prefer small, precise hunks.
 *** End Patch
 ```
 
-Do **not** use shell (`executor.run`) to create/edit source when `executor.apply` \
-can do it. `executor.run` requires explicit approval (`approved=true`).
+Do **not** use shell (`terminal.run` / `executor.run`) to create/edit source when `executor.apply` \
+can do it. Shell tools require explicit approval (`approved=true`).
+
+Prefer `terminal.run` for general shell access (cwd, env, stdin). Use `executor.run` only when \
+a simpler one-shot command suffices.
 
 Prefer modest patches: scaffold short files first, then expand with updates.
 """
@@ -81,6 +84,19 @@ do not invent a different tool name.
 On apply mismatch / failed patch, re-read the file (`rna.read_file`) and craft \
 a tighter edit. On `File already exists` from `executor.apply`, switch to \
 `*** Update File` or `search_replace`.
+"""
+
+_ARCHITECTURE_DIAGRAMS = """\
+## Architecture diagrams — `rna.get_hld` / `rna.get_lld`
+
+- **`rna.get_hld`** — package/module dependency map (bird's-eye). Optional `scope`, \
+`granularity` (`coarse`|`module`|`fine`|`file`). Default **`format=json`** (preferred for agents).
+- **`rna.get_lld`** — class/function structure for one **file or directory** (`scope` required). \
+Default **`format=json`**.
+- **`rna.trace_workflow`** — runtime call path across files; use `file:symbol` entrypoints \
+(e.g. `src/pkg/handler.py:handle`).
+
+Use **`format=mermaid`** only when the user needs a diagram preview, not for routine reasoning.
 """
 
 
@@ -122,6 +138,9 @@ def render_capabilities(tools: list[Any] | tuple[Any, ...]) -> str:
                 lines.append("- Pairs with: " + ", ".join(f"`{p}`" for p in pairs))
             lines.append("")
     lines.append(_TOOL_RESULT_CONTRACT)
+    if "rna.get_hld" in names or "rna.get_lld" in names:
+        lines.append("")
+        lines.append(_ARCHITECTURE_DIAGRAMS)
     if "executor.apply" in names:
         lines.append("")
         lines.append(_EDIT_FORMATS)

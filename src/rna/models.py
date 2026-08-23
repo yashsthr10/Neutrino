@@ -8,6 +8,7 @@ from typing import Any, Generic, Literal, TypeVar
 T = TypeVar("T")
 
 Confidence = Literal["heuristic", "precise", "whole_program"]
+HLDGranularity = Literal["coarse", "module", "fine", "file"]
 
 
 @dataclass(frozen=True, slots=True)

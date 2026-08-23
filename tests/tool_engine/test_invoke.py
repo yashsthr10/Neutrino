@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from tests.doubles.context import FakeContextManager
 from src.tool_engine import ToolEngine, ToolRequest
 
@@ -79,6 +81,51 @@ def test_executor_run_requires_approval(engine: ToolEngine) -> None:
     assert result.meta.error == "permission_denied"
 
 
+def test_terminal_run_requires_approval(engine: ToolEngine) -> None:
+    result = engine.invoke(
+        ToolRequest(name="terminal.run", arguments={"command": "echo hi", "approved": False}),
+        state="AGENT",
+    )
+    assert result.success is False
+    assert result.meta.error == "permission_denied"
+
+
+def test_terminal_run_executes_with_approval(engine: ToolEngine) -> None:
+    result = engine.invoke(
+        ToolRequest(
+            name="terminal.run",
+            arguments={"command": "echo hello-terminal", "approved": True},
+        ),
+        state="AGENT",
+    )
+    assert result.success is True
+    assert "hello-terminal" in result.data["stdout"]
+
+
+def test_terminal_run_respects_cwd(engine: ToolEngine, exec_repo: Path) -> None:
+    result = engine.invoke(
+        ToolRequest(
+            name="terminal.run",
+            arguments={"command": "pwd", "cwd": "auth", "approved": True},
+        ),
+        state="AGENT",
+    )
+    assert result.success is True
+    assert str(exec_repo / "auth") in result.data["stdout"]
+
+
+def test_terminal_run_rejects_escape_cwd(engine: ToolEngine) -> None:
+    result = engine.invoke(
+        ToolRequest(
+            name="terminal.run",
+            arguments={"command": "pwd", "cwd": "../../../etc", "approved": True},
+        ),
+        state="AGENT",
+    )
+    assert result.success is False
+    assert "escapes repository root" in result.data["stderr"]
+
+
 def test_rna_read_file_and_search(engine: ToolEngine) -> None:
     read = engine.invoke(
         ToolRequest(name="rna.read_file", arguments={"path": "auth/service.py"}),
@@ -137,6 +184,37 @@ def test_plan_set_tasks_requires_content(engine: ToolEngine) -> None:
         ToolRequest(name="plan.set_tasks", arguments={"tasks": [{"status": "pending"}]}),
         state="EXECUTE",
     )
+    assert result.success is False
+    assert result.meta.error == "validation_error"
+
+
+def test_rna_get_hld_and_lld(engine: ToolEngine) -> None:
+    hld = engine.invoke(
+        ToolRequest(name="rna.get_hld", arguments={"scope": "auth"}),
+        state="PLAN",
+    )
+    assert hld.success is True
+    assert "nodes" in hld.data["data"]
+
+    lld = engine.invoke(
+        ToolRequest(name="rna.get_lld", arguments={"scope": "auth/service.py"}),
+        state="PLAN",
+    )
+    assert lld.success is True
+    assert lld.data["data"]["scope"] == "auth/service.py"
+
+
+def test_rna_get_hld_rejects_invalid_format(engine: ToolEngine) -> None:
+    result = engine.invoke(
+        ToolRequest(name="rna.get_hld", arguments={"format": "svg"}),
+        state="AGENT",
+    )
+    assert result.success is False
+    assert result.meta.error == "validation_error"
+
+
+def test_rna_get_lld_requires_scope(engine: ToolEngine) -> None:
+    result = engine.invoke(ToolRequest(name="rna.get_lld", arguments={}), state="AGENT")
     assert result.success is False
     assert result.meta.error == "validation_error"
 

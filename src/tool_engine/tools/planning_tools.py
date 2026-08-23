@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
+from src.config.constants import TOOL_AVAILABLE_STATES
 from src.tool_engine.models import ToolParam, ToolSpec
-
-_STATES = frozenset({"AGENT", "PLAN", "CONTEXT", "EXECUTE", "VERIFY", "REVIEW"})
 
 
 def planning_tool_specs() -> list[ToolSpec]:
@@ -19,7 +18,7 @@ def planning_tool_specs() -> list[ToolSpec]:
             ),
             category="planning",
             handler_key="plan.set_tasks",
-            states=_STATES,
+            states=TOOL_AVAILABLE_STATES,
             when_to_use="Multi-step work (3+ distinct steps) where progress visibility helps.",
             when_not_to_use="Small single-step asks — skip the checklist.",
             pairs_with=("executor.apply", "context.resolve"),

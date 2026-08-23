@@ -16,6 +16,7 @@ from src.tool_engine.capabilities import (
     ResearchCapability,
     RnaCapability,
     RuntimeServices,
+    TerminalCapability,
     VerificationCapability,
 )
 from src.verification import build_verification_service
@@ -137,6 +138,7 @@ def build_tool_engine(
         RnaCapability(services, serializer),
         ResearchCapability(services, serializer),
         ExecutionCapability(services, serializer),
+        TerminalCapability(services, serializer),
         VerificationCapability(services, serializer),
         GitCapability(services, serializer),
         PlanningCapability(services, serializer),

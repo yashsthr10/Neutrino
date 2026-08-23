@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-from src.config.constants import EXECUTOR_APPLY_PATCH_MAX_LENGTH
+from src.config.constants import EXECUTOR_APPLY_PATCH_MAX_LENGTH, TOOL_AVAILABLE_STATES
 from src.tool_engine.models import ToolParam, ToolSpec
-
-_STATES = frozenset({"AGENT", "PLAN", "CONTEXT", "EXECUTE", "VERIFY", "REVIEW"})
 
 
 def execution_tool_specs() -> list[ToolSpec]:
@@ -22,7 +20,7 @@ def execution_tool_specs() -> list[ToolSpec]:
             ),
             category="execution",
             handler_key="executor.apply",
-            states=_STATES,
+            states=TOOL_AVAILABLE_STATES,
             when_to_use="Implementing or fixing after you have read the target (or are creating a new file).",
             when_not_to_use="Before reading an existing file; not for running tests or shell.",
             pairs_with=("rna.read_file", "executor.diff", "tests.run"),
@@ -50,7 +48,7 @@ def execution_tool_specs() -> list[ToolSpec]:
             description="Rollback a prior executor.apply change by change_id.",
             category="execution",
             handler_key="executor.rollback",
-            states=_STATES,
+            states=TOOL_AVAILABLE_STATES,
             when_to_use="Need to undo a prior apply in this run.",
             when_not_to_use="Prefer a new corrective apply when the fix is small.",
             pairs_with=("executor.apply", "executor.diff"),
@@ -61,7 +59,7 @@ def execution_tool_specs() -> list[ToolSpec]:
             description="Show unified diff for a prior apply (or last change).",
             category="execution",
             handler_key="executor.diff",
-            states=_STATES,
+            states=TOOL_AVAILABLE_STATES,
             when_to_use="Confirm what changed after an apply.",
             when_not_to_use="Use git.diff for full working-tree status vs last apply only.",
             pairs_with=("executor.apply", "git.diff"),
@@ -78,7 +76,7 @@ def execution_tool_specs() -> list[ToolSpec]:
             ),
             category="execution",
             handler_key="executor.run",
-            states=_STATES,
+            states=TOOL_AVAILABLE_STATES,
             when_to_use="Commands with no dedicated tool; project-specific scripts after approval.",
             when_not_to_use="Prefer rna.list_files / verify.probe / tests.run / lint.run when they apply.",
             pairs_with=("tests.run", "lint.run", "verify.probe"),

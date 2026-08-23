@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
+from src.config.constants import TOOL_AVAILABLE_STATES
 from src.tool_engine.models import ToolParam, ToolSpec
-
-_STATES = frozenset({"AGENT", "PLAN", "CONTEXT", "EXECUTE", "VERIFY", "REVIEW"})
 
 
 def context_tool_specs() -> list[ToolSpec]:
@@ -17,7 +16,7 @@ def context_tool_specs() -> list[ToolSpec]:
             ),
             category="context",
             handler_key="context.resolve",
-            states=_STATES,
+            states=TOOL_AVAILABLE_STATES,
             when_to_use="Start of a non-trivial task: gather a ranked repo + conversation package.",
             when_not_to_use="You already have the exact file path and only need to read it.",
             pairs_with=("context.expand", "rna.read_file", "rna.find_symbol"),
@@ -43,7 +42,7 @@ def context_tool_specs() -> list[ToolSpec]:
             description="Expand an existing context package with additional retrieval.",
             category="context",
             handler_key="context.expand",
-            states=_STATES,
+            states=TOOL_AVAILABLE_STATES,
             when_to_use="Need more retrieval beyond the last resolve without starting over.",
             when_not_to_use="First retrieval — use context.resolve.",
             pairs_with=("context.resolve",),
@@ -69,7 +68,7 @@ def context_tool_specs() -> list[ToolSpec]:
             description="Invalidate cache and refresh context after repo changes.",
             category="context",
             handler_key="context.refresh",
-            states=_STATES,
+            states=TOOL_AVAILABLE_STATES,
             when_to_use="After substantial edits when prior context may be stale.",
             when_not_to_use="Before any edits — use resolve.",
             pairs_with=("context.resolve", "executor.apply"),

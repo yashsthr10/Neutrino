@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
+from src.config.constants import TOOL_AVAILABLE_STATES
 from src.tool_engine.models import ToolParam, ToolSpec
-
-_STATES = frozenset({"AGENT", "PLAN", "CONTEXT", "EXECUTE", "VERIFY", "REVIEW"})
 
 
 def git_tool_specs() -> list[ToolSpec]:
@@ -14,7 +13,7 @@ def git_tool_specs() -> list[ToolSpec]:
             description="Stage all changes and create a git commit.",
             category="git",
             handler_key="git.commit",
-            states=_STATES,
+            states=TOOL_AVAILABLE_STATES,
             when_to_use="User asked to commit and changes are ready.",
             when_not_to_use="Do not invent commits; avoid force operations.",
             pairs_with=("git.diff", "executor.apply"),
@@ -25,7 +24,7 @@ def git_tool_specs() -> list[ToolSpec]:
             description="Undo the last commit with git reset --mixed HEAD~1.",
             category="git",
             handler_key="git.undo",
-            states=_STATES,
+            states=TOOL_AVAILABLE_STATES,
             when_to_use="User asked to undo the last commit; keep it rare.",
             when_not_to_use="Destructive history rewrite beyond mixed reset.",
             pairs_with=("git.diff", "git.commit"),
@@ -36,7 +35,7 @@ def git_tool_specs() -> list[ToolSpec]:
             description="Show git working-tree or staged diff.",
             category="git",
             handler_key="git.diff",
-            states=_STATES,
+            states=TOOL_AVAILABLE_STATES,
             when_to_use="Inspect uncommitted changes in the working tree.",
             when_not_to_use="Use executor.diff for the last apply-only change id.",
             pairs_with=("git.commit", "executor.diff"),

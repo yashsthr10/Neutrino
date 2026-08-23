@@ -68,6 +68,7 @@ class ShellResult:
     stderr: str
     truncated: bool = False
     needs_approval: bool = False
+    cwd: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

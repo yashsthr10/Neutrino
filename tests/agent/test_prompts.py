@@ -22,6 +22,9 @@ def test_agent_prompt_has_layers_and_tools() -> None:
     assert "add /health endpoint" in text
     assert "`executor.apply`" in text
     assert "`rna.read_file`" in text
+    assert "`rna.get_hld`" in text
+    assert "`rna.get_lld`" in text
+    assert "Architecture diagrams" in text
     assert "*** Begin Patch" in text
     assert "never invent tool" in text.lower()
     assert "only actor that invokes tools" in text.lower()

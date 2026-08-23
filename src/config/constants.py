@@ -13,6 +13,8 @@ Notes
 
 from __future__ import annotations
 
+from typing import Literal
+
 # ---------------------------------------------------------------------------
 # Protocol (RPC handshake)
 # ---------------------------------------------------------------------------
@@ -156,6 +158,9 @@ CATALOG_MODEL_LABELS: dict[str, str] = {
 # Tool engine validation & serialization
 # ---------------------------------------------------------------------------
 
+# FSM states where ToolSpecs are exposed (excludes INIT / DONE / CANCELLED).
+TOOL_AVAILABLE_STATES = frozenset({"AGENT", "PLAN", "CONTEXT", "EXECUTE", "VERIFY", "REVIEW"})
+
 TOOL_MAX_STRING_LEN = 16_384
 TOOL_MAX_LIST_LEN = 256
 EXECUTOR_APPLY_PATCH_MAX_LENGTH = 512_000
@@ -170,3 +175,13 @@ TOOL_MAX_SERIALIZED_MESSAGES = 12
 # ---------------------------------------------------------------------------
 
 SHELL_MAX_OUTPUT_CHARS = 32_000
+TERMINAL_DEFAULT_TIMEOUT_S = 600.0
+
+# ---------------------------------------------------------------------------
+# RNA design recovery (HLD / LLD)
+# ---------------------------------------------------------------------------
+
+# JSON is the default output — token-efficient for agents; use format="mermaid" for preview.
+HLD_DEFAULT_FORMAT: Literal["json", "mermaid"] = "json"
+LLD_DEFAULT_FORMAT: Literal["json", "mermaid"] = "json"
+HLD_DEFAULT_GRANULARITY: Literal["coarse", "module", "fine", "file"] = "module"

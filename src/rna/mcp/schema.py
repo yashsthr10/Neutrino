@@ -30,7 +30,11 @@ _DESCRIPTIONS = {
     "get_callers": "Return every call site that invokes the given symbol (reverse call graph).",
     "get_tests": "Find tests covering a file or symbol.",
     "get_workflow": "Trace execution from an entry point through the call graph.",
-    "get_hld": "Bird's-eye package/module architecture model.",
+    "get_hld": (
+        "Bird's-eye package/module architecture model. "
+        "Default format=json (token-efficient for agents); pass format=mermaid for diagrams. "
+        "Use granularity=coarse|module|fine|file to control grouping depth."
+    ),
     "get_lld": "Class/function-level structure for a scope.",
     "search": "Fast literal/regex search across the repository.",
     "semantic_search": "Find code by natural-language meaning.",

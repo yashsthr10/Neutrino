@@ -56,7 +56,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--yes",
         action="store_true",
-        help="Auto-approve executor.run shell commands",
+        help="Auto-approve terminal.run and executor.run shell commands",
     )
     p.add_argument(
         "--timing",
